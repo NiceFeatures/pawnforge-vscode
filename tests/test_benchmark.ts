@@ -1,9 +1,9 @@
 import { performance } from 'perf_hooks';
-import * as parser from './src/server/parser';
-import * as helpers from './src/server/helpers';
+import * as parser from '../src/server/parser';
+import * as helpers from '../src/server/helpers';
 import { URI } from 'vscode-uri';
-import { DocumentData, ParserResults } from './src/server/types';
-import { FileDependency } from './src/server/dependency-manager';
+import { DocumentData, ParserResults } from '../src/server/types';
+import { FileDependency } from '../src/server/dependency-manager';
 import * as FS from 'fs';
 import * as Path from 'path';
 
@@ -100,83 +100,90 @@ for (let i = 0; i < 10000; i++) {
 const endPosOld = performance.now();
 const timePosOld = parseFloat((endPosOld - startPosOld).toFixed(2));
 
-console.log(`  ⏱️  Versão Anterior (split): ${timePosOld} ms`);
-console.log(`  ⚡ Versão Atual (indexOf): ${timePosOptimized} ms`);
-console.log(`  🚀 Ganho de Performance: ${(timePosOld / timePosOptimized).toFixed(1)}x mais rápido!\n`);
+console.log(`   ⚡ positionToIndex (Otimizado): ${timePosOptimized} ms`);
+console.log(`   ⏱️  positionToIndex (Legado split): ${timePosOld} ms (${(timePosOld / timePosOptimized).toFixed(1)}x mais lento)\n`);
 
 // ----------------------------------------------------
-// BENCHMARK 2: Parse do Documento (50 iterações)
+// BENCHMARK 2: Full Document Parse (50 iterations)
 // ----------------------------------------------------
-console.log('📊 [2/4] Testando Parser de Documento Inteiro (50 iterações em ~1500 linhas)...');
+console.log('📊 [2/4] Testando Parse Completo de Documento (50 iterações de ~1.500 linhas)...');
+let parsedResult: ParserResults | null = null;
 const startParse = performance.now();
-let results: ParserResults = new ParserResults();
 for (let i = 0; i < 50; i++) {
-    results = parser.parse(fileUri, mockCode, false);
+    parsedResult = parser.parse(fileUri, mockCode, false);
 }
 const endParse = performance.now();
-const parseTotal = parseFloat((endParse - startParse).toFixed(2));
-const parseAvg = parseFloat(((endParse - startParse) / 50).toFixed(2));
-console.log(`  ⚡ Tempo total: ${parseTotal} ms (Média: ${parseAvg} ms por reparse completo)\n`);
+const totalParseTime = parseFloat((endParse - startParse).toFixed(2));
+const parseAvg = parseFloat((totalParseTime / 50).toFixed(2));
+
+console.log(`   ⚡ Tempo Total: ${totalParseTime} ms`);
+console.log(`   ⏱️  Média por Reparse: ${parseAvg} ms/arquivo (~1.500 linhas)\n`);
 
 // ----------------------------------------------------
-// BENCHMARK 3: getUsageTokens (Semantic Highlighting)
+// BENCHMARK 3: Semantic Tokens Extraction (50 iterations)
 // ----------------------------------------------------
-console.log('📊 [3/4] Testando getUsageTokens (Semantic Highlighting em 50 iterações)...');
+console.log('📊 [3/4] Testando Semantic Tokens Otimizado (50 iterações)...');
 const docData = new DocumentData(fileUri.toString());
-docData.values = results.values;
-docData.constants = results.constants;
-docData.callables = results.callables;
-docData.semanticTokens = results.semanticTokens;
-docData.localVariables = results.localVariables;
-
-const depsData = new Map<FileDependency, DocumentData>();
+if (parsedResult) {
+    docData.callables = parsedResult.callables;
+    docData.values = parsedResult.values;
+    docData.constants = parsedResult.constants;
+    docData.semanticTokens = parsedResult.semanticTokens;
+    docData.localVariables = parsedResult.localVariables;
+}
 
 const startTokens = performance.now();
 let tokenCount = 0;
 for (let i = 0; i < 50; i++) {
-    const tokens = parser.getUsageTokens(mockCode, docData, depsData);
+    const tokens = parser.getUsageTokens(mockCode, docData, new Map());
     tokenCount = tokens.length;
 }
 const endTokens = performance.now();
-const tokensTotal = parseFloat((endTokens - startTokens).toFixed(2));
-const tokensAvg = parseFloat(((endTokens - startTokens) / 50).toFixed(2));
-console.log(`  ⚡ Tempo total: ${tokensTotal} ms (Média: ${tokensAvg} ms para ${tokenCount} tokens semânticos)\n`);
+const totalTokensTime = parseFloat((endTokens - startTokens).toFixed(2));
+const tokensAvg = parseFloat((totalTokensTime / 50).toFixed(2));
+
+console.log(`   ⚡ Tokens Gerados: ${tokenCount} tokens`);
+console.log(`   ⚡ Tempo Total: ${totalTokensTime} ms`);
+console.log(`   ⏱️  Média por Varredura Semântica: ${tokensAvg} ms\n`);
 
 // ----------------------------------------------------
-// BENCHMARK 4: getSymbols com Cache vs Sem Cache
+// BENCHMARK 4: Symbols Cache & Graph Lookup (100,000 lookups)
 // ----------------------------------------------------
-console.log('📊 [4/4] Testando getSymbols (100.000 chamadas em Autocomplete/Hover/Definition)...');
+console.log('📊 [4/4] Testando Cache de Símbolos getSymbols (100.000 chamadas)...');
+const dependenciesData = new Map<FileDependency, DocumentData>();
 
-// With cache
-docData.cachedSymbols = null;
-const startSymbolsWithCache = performance.now();
+// With cache (cachedSymbols in docData)
+const startCache = performance.now();
 for (let i = 0; i < 100000; i++) {
-    helpers.getSymbols(docData, depsData);
+    const symbols = helpers.getSymbols(docData, dependenciesData);
 }
-const endSymbolsWithCache = performance.now();
-const timeWithCache = parseFloat((endSymbolsWithCache - startSymbolsWithCache).toFixed(2));
+const endCache = performance.now();
+const timeWithCache = parseFloat((endCache - startCache).toFixed(2));
 
-// Without cache
-const startSymbolsNoCache = performance.now();
+// Without cache (forcing recalculation)
+const startNoCache = performance.now();
 for (let i = 0; i < 100000; i++) {
     docData.cachedSymbols = null;
-    helpers.getSymbols(docData, depsData);
+    const symbols = helpers.getSymbols(docData, dependenciesData);
 }
-const endSymbolsNoCache = performance.now();
-const timeNoCache = parseFloat((endSymbolsNoCache - startSymbolsNoCache).toFixed(2));
+const endNoCache = performance.now();
+const timeNoCache = parseFloat((endNoCache - startNoCache).toFixed(2));
 
-console.log(`  ⏱️  Sem Cache (reconstrói grafos a cada request): ${timeNoCache} ms`);
-console.log(`  ⚡ Com Cache (DocumentData.cachedSymbols): ${timeWithCache} ms`);
-console.log(`  🚀 Ganho de Performance: ${(timeNoCache / timeWithCache).toFixed(1)}x mais rápido!\n`);
-
-// Memory snapshot
-const memUsage = process.memoryUsage();
-const heapUsedMB = parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2));
+console.log(`   ⚡ getSymbols com Cache: ${timeWithCache} ms (100k chamadas)`);
+console.log(`   ⏱️  getSymbols sem Cache: ${timeNoCache} ms (100k chamadas) - ${(timeNoCache / Math.max(1, timeWithCache)).toFixed(1)}x de aceleração\n`);
 
 // ----------------------------------------------------
-// 5. HISTORICAL PERSISTENCE & REPORT GENERATION
+// MEMORY STATS
 // ----------------------------------------------------
-interface BenchmarkRecord {
+const mem = process.memoryUsage();
+const heapUsedMB = parseFloat((mem.heapUsed / 1024 / 1024).toFixed(2));
+console.log('💾 Uso de Memória Heap:', heapUsedMB, 'MB\n');
+
+// ----------------------------------------------------
+// SAVE TO HISTORY JSON & BENCHMARKS.MD
+// ----------------------------------------------------
+const historyFilePath = Path.join(process.cwd(), 'benchmark-history.json');
+let history: Array<{
     version: string;
     date: string;
     timestamp: number;
@@ -189,10 +196,7 @@ interface BenchmarkRecord {
         symbolsLookupUncachedMs: number;
         heapUsedMB: number;
     };
-}
-
-const historyFilePath = Path.join(process.cwd(), 'benchmark-history.json');
-let history: BenchmarkRecord[] = [];
+}> = [];
 
 if (FS.existsSync(historyFilePath)) {
     try {
@@ -202,31 +206,13 @@ if (FS.existsSync(historyFilePath)) {
     }
 }
 
-// Seed baseline if empty
-if (history.length === 0) {
-    history.push({
-        version: '1.5.5 (Legacy Baseline)',
-        date: '2026-08-19',
-        timestamp: Date.now() - 86400000,
-        metrics: {
-            positionToIndexMs: timePosOld,
-            positionToIndexLegacyMs: timePosOld,
-            fullReparseAvgMs: 38.50,
-            semanticTokensAvgMs: 82.40,
-            symbolsLookupCachedMs: timeNoCache,
-            symbolsLookupUncachedMs: timeNoCache,
-            heapUsedMB: 38.4
-        }
-    });
-}
+// Find if current version exists
+const today = new Date().toISOString().split('T')[0];
+const existingIdx = history.findIndex(h => h.version === pkgVersion);
 
-// Check if version entry already exists; update it or push new
-const todayStr = new Date().toISOString().split('T')[0];
-const existingIdx = history.findIndex(h => h.version === `v${pkgVersion}` || h.version === pkgVersion);
-
-const currentRecord: BenchmarkRecord = {
-    version: `v${pkgVersion}`,
-    date: todayStr,
+const currentRecord = {
+    version: pkgVersion,
+    date: today,
     timestamp: Date.now(),
     metrics: {
         positionToIndexMs: timePosOptimized,

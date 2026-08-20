@@ -2,6 +2,7 @@
 .git/**
 typings/**
 src/**
+tests/**
 **/*.ts
 **/*.map
 .gitignore

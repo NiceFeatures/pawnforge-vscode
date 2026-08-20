@@ -1,7 +1,7 @@
-import * as parser from './src/server/parser';
+import * as parser from '../src/server/parser';
 import { URI } from 'vscode-uri';
-import { DocumentData } from './src/server/types';
-import { FileDependency } from './src/server/dependency-manager';
+import { DocumentData } from '../src/server/types';
+import { FileDependency } from '../src/server/dependency-manager';
 import * as assert from 'assert';
 
 console.log('=== RUNNING LSP FEATURES TESTS ===\n');

@@ -1,4 +1,4 @@
-import * as parser from './src/server/parser';
+import * as parser from '../src/server/parser';
 import { URI } from 'vscode-uri';
 
 const code = `

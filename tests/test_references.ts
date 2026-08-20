@@ -23,15 +23,15 @@ function findIdentifierOccurrences(content: string, identifier: string, searchIn
 }
 
 const content = `
-@ClearResults()
-{
-    new NowHostName[85];
-    set_task(4.0, "@ClearResults");
+new my_var = 10;
+public my_func() {
+    my_var = 20;
+    server_print("my_var = %d", my_var);
 }
 `;
 
 console.log("Without searchInStrings:");
-findIdentifierOccurrences(content, '@ClearResults', false);
+findIdentifierOccurrences(content, "my_var", false);
 
 console.log("\\nWith searchInStrings:");
-findIdentifierOccurrences(content, '@ClearResults', true);
+findIdentifierOccurrences(content, "my_var", true);

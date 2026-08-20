@@ -1,4 +1,4 @@
-import * as parser from './src/server/parser';
+import * as parser from '../src/server/parser';
 import * as VSCLS from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 

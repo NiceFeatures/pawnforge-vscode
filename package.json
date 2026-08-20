@@ -200,8 +200,8 @@
         "compile": "tsc -noEmit -p ./",
         "esbuild": "node esbuild.js --production",
         "watch": "node esbuild.js --watch",
-        "test": "node -e \"require('esbuild').buildSync({ entryPoints: ['test_usage.ts', 'test_parser.ts', 'test_references.ts', 'test_arr.ts', 'test_lsp_features.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_arr.js && node build/test/test_references.js && node build/test/test_usage.js && node build/test/test_lsp_features.js",
-        "benchmark": "node -e \"require('esbuild').buildSync({ entryPoints: ['test_benchmark.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_benchmark.js"
+        "test": "node -e \"require('esbuild').buildSync({ entryPoints: ['tests/test_usage.ts', 'tests/test_parser.ts', 'tests/test_references.ts', 'tests/test_arr.ts', 'tests/test_lsp_features.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_arr.js && node build/test/test_references.js && node build/test/test_usage.js && node build/test/test_lsp_features.js",
+        "benchmark": "node -e \"require('esbuild').buildSync({ entryPoints: ['tests/test_benchmark.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_benchmark.js"
     },
     "devDependencies": {
         "@types/node": "^18.0.0",

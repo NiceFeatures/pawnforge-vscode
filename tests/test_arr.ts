@@ -1,5 +1,5 @@
-import * as Parser from './src/server/parser';
-import * as Types from './src/server/types';
+import * as Parser from '../src/server/parser';
+import * as Types from '../src/server/types';
 import { URI } from 'vscode-uri';
 
 // =================================================================

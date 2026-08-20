@@ -1,6 +1,6 @@
-import * as parser from './src/server/parser';
+import * as parser from '../src/server/parser';
 import { URI } from 'vscode-uri';
-import { DocumentData } from './src/server/types';
+import { DocumentData } from '../src/server/types';
 
 const code = `
 new const TEST_ARR[5][5] = {
