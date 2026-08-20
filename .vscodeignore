@@ -15,4 +15,8 @@ build/**
 esbuild.js
 context.md
 .agent/**
+.agents/**
 .github/**
+graphify-out/**
+*.sma
+*.amxx

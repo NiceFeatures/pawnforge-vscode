@@ -12,7 +12,7 @@ jobs:
       contents: write 
 
     steps:
-      - name: Checkout do código
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -21,19 +21,22 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Instalar dependências
+      - name: Install dependencies
         run: npm install
 
-      - name: Compilar extensão
+      - name: Compile extension
         run: npm run compile
 
-      - name: Instalar VSCE globalmente
+      - name: Run tests
+        run: npm test
+
+      - name: Install VSCE globally
         run: npm install -g @vscode/vsce
 
-      - name: Empacotar extensão (.vsix)
+      - name: Package extension (.vsix)
         run: vsce package
 
-      - name: Criar Release e Fazer Upload
+      - name: Create Release and Upload
         uses: softprops/action-gh-release@v2
         with:
           files: '*.vsix'

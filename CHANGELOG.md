@@ -7,6 +7,57 @@ layout: default
   <a href="/amxxpawn-language/CHANGELOG.html">Histórico de Mudanças</a>
 </p>
 
+## [Version 1.5.6] - 2026-08-20
+### Added
+- **Suporte a Variáveis de Ambiente em Caminhos (`${env:...}`)**: Agora é possível utilizar variáveis de ambiente do sistema (como `${env:AMXX_HOME}`, `${env:USERPROFILE}`, `${env:HLDS_DIR}`) em todos os caminhos configurados (`includePaths`, `globalIncludePaths`, `executablePath`, `outputPath`).
+- * **Environment Variables Support in Paths (`${env:...}`)**: Added support for system environment variables (such as `${env:AMXX_HOME}`, `${env:USERPROFILE}`, `${env:HLDS_DIR}`) across all configured path settings (`includePaths`, `globalIncludePaths`, `executablePath`, `outputPath`).*
+- **Expansão de Diretórios com Glob e Recursão (`**` e `*`)**: O compilador e o Language Server agora suportam padrões glob (ex: `${workspaceRoot}/include/**`), descobrindo automaticamente todas as subpastas que contêm arquivos `.inc` para autocompletion e compilação.
+- * **Glob and Recursive Directory Expansion (`**` & `*`)**: The compiler and Language Server now support glob patterns (e.g. `${workspaceRoot}/include/**`), automatically resolving all subdirectories containing `.inc` files for autocompletion and compilation.*
+- **Configuração de Includes Globais (`amxxpawn.compiler.globalIncludePaths`)**: Nova configuração para registrar diretórios de include compartilhados globalmente no VS Code, unificando com os includes específicos do projeto.
+- * **Global Include Paths Setting (`amxxpawn.compiler.globalIncludePaths`)**: New setting to register shared include directories globally in VS Code settings, unified with project-specific includes.*
+- **Document Highlight**: Ao selecionar ou posicionar o cursor em qualquer identificador, todas as suas ocorrências no documento atual são automaticamente destacadas no editor.
+- * **Document Highlight**: Highlighting an identifier automatically highlights all its occurrences across the active document.*
+- **Folding Ranges**: Suporte nativo a recolhimento e expansão de blocos pre-processadores (`#if/#else/#endif`), comentários em bloco (`/* */`), `enum { }` e funções `{ }`.
+- * **Folding Ranges**: Native code folding for preprocessor directives (`#if/#else/#endif`), block comments (`/* */`), `enum` blocks, and function braces.*
+- **Workspace Symbols (`Ctrl+T`)**: Pesquisa global rápida de símbolos (funções, stocks, constantes, macros) em todos os arquivos e includes do projeto.
+- * **Workspace Symbols (`Ctrl+T`)**: Global workspace symbol search across all open files and loaded `.inc` dependencies.*
+- **Compatibilidade com o Compilador `amxx-nova-pc`**: Suporte completo ao novo compilador moderno Pawn AMXX (`amxx-nova-pc` da equipe hlds.run), com detecção aprimorada de sucesso, suporte correto a flags como `-E` e `-d3`, estatísticas detalhadas de binário e sem dependência do padrão legado de saída `Done.`.
+- * **`amxx-nova-pc` Modern Compiler Compatibility**: Full compatibility with next-gen AMXX Pawn compilers (such as `amxx-nova-pc` by the hlds.run team), featuring enhanced success detection, robust support for flags like `-E` and `-d3`, detailed binary statistics, and removal of legacy `Done.` stdout dependency.*
+- **Status Bar de Compilação**: Indicador visual de status e tempo de compilação em tempo real na barra inferior do VS Code com atalho de clique para compilar.
+- * **Compilation Status Bar**: Real-time compilation status and elapsed time indicator in the VS Code status bar.*
+
+### Performance & Optimization
+- **Cache de Diretórios de Include**: Resolução de diretórios com glob (`**`) agora é cacheada em memória e reutilizada para todos os `#include`, eliminando varreduras síncronas redundantes no disco durante a digitação.
+- * **Include Directory Caching**: Glob path resolution (`**`) is now cached in memory and reused across `#include` directives, eliminating redundant synchronous disk traversals.*
+- **Cache de Símbolos (`getSymbols`)**: Símbolos e árvore de dependências agora são cacheados por documento, evitando recriação repetitiva de estruturas de dados em requisições de autocomplete, hover e definições (ganho de **530x mais rápido** nos benchmarks).
+- * **Symbol Graph Caching (`getSymbols`)**: Symbols and dependency graphs are now cached per document, preventing redundant traversals on autocomplete, hover, and definition requests (**530x faster** in benchmarks).*
+- **Otimização de Semantic Tokens ($O(1)$)**: Reduzida a complexidade da busca de variáveis locais e verificação de coordenadas de tokens para $O(1)$ com mapas indexados por linha e conjuntos de coordenadas (~13ms para 1.700 tokens).
+- * **Semantic Tokens Optimization ($O(1)$)**: Reduced lookup complexity for local variables and coordinate deduplication to $O(1)$ using per-line maps and coordinate sets (~13ms for 1,700 tokens).*
+- **Leitura em Memória no `Find References`**: O comando "Find All References" agora reutiliza o cache de arquivos include em memória em vez de reler arquivos do disco.
+- * **In-Memory Find References**: "Find All References" now reuses the in-memory include content cache instead of rereading `.inc` files from disk.*
+- **Cálculo de Posição sem Alocação de Strings**: `positionToIndex` otimizado para escanear quebras de linha com `indexOf`, eliminando alocações de `split('\n')` (**6.7x mais rápido**).
+- * **Allocation-Free Position Calculation**: `positionToIndex` now scans newlines with `indexOf` avoiding heavy `split('\n')` allocations (**6.7x faster**).*
+- **Otimização do Pipeline de Compilação do Editor**:
+  - Implementado cache no cliente para resolução de diretórios de includes (`getResolvedIncludeDirsClient`), evitando varreduras de disco síncronas antes de invocar o `amxxpc`.
+  - Filtragem de diretórios vazios: agora apenas pastas que realmente contêm arquivos `.inc` são passadas via flag `-i` para o `amxxpc`, reduzindo os lookups internos do compilador.
+  - Cache em memória do executável do compilador `findAmxxpc` com invalidação reativa em mudanças de configuração.
+- * **Editor Compilation Pipeline Optimization**:
+  - Implemented client-side include directory resolution cache (`getResolvedIncludeDirsClient`), removing synchronous disk traversals before calling `amxxpc`.
+  - Empty directory pruning: only folders actually containing `.inc` headers are passed as `-i` flags to `amxxpc`, speeding up compiler disk lookups.
+  - In-memory caching of compiler executable lookup with reactive configuration invalidation.*
+- **Suíte de Benchmark e Histórico de Builds (`npm run benchmark`)**: Nova ferramenta de benchmark automatizada que mede o tempo de execução em milissegundos, persiste o histórico de builds em [`benchmark-history.json`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/benchmark-history.json) e gera relatórios comparativos em [`BENCHMARKS.md`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/BENCHMARKS.md).
+- * **Integrated Benchmark Suite & Build History (`npm run benchmark`)**: Automated benchmark tool measuring millisecond timings, persisting build history in [`benchmark-history.json`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/benchmark-history.json) and auto-generating comparison reports in [`BENCHMARKS.md`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/BENCHMARKS.md).*
+
+### Fixed
+- **Configuração `amxxpawn.language.reparseInterval`**: Conectada a configuração ao temporizador de debounce do Language Server (com valor padrão de 300ms para máxima fluidez).
+- * **`amxxpawn.language.reparseInterval` Setting**: Connected the setting to the Language Server debounce timer (with a snappy 300ms default).*
+- **Proteção contra Timing Attacks**: `verifyFileIntegrity` agora utiliza `crypto.timingSafeEqual` para comparação constante de hash.
+- * **Timing Attack Protection**: `verifyFileIntegrity` now uses `crypto.timingSafeEqual` for constant-time hash comparison.*
+- **Correção de Escape Regex no `findIdentifierOccurrences`**: Corrigido escape de metacaracteres.
+- * **Regex Escape Fix in `findIdentifierOccurrences`**: Corrected double-escaped regex metacharacter handling.*
+- **Pipeline de Testes Automatizados**: Adicionado comando `npm test` e integrado aos workflows de CI/CD do GitHub Actions.
+- * **Automated Test Pipeline**: Added `npm test` script and integrated into GitHub Actions CI/CD workflows.*
+
 ## [Version 1.5.5] - 2026-07-22
 ### Fixed
 - **Prevenção de Crash em `compileLocal`**: Tratado erro na leitura de diretórios em `compileLocal` para evitar Unhandled Exceptions no Extension Host.

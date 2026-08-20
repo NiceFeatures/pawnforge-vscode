@@ -102,6 +102,7 @@ export class DocumentData {
     public dependencies: DM.FileDependency[] = [];
     public semanticTokens: SemanticToken[] = [];
     public localVariables: LocalVariableDescriptor[] = [];
+    public cachedSymbols: any | null = null;
 
     constructor(uri: string) {
         this.uri = uri;

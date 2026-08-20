@@ -177,12 +177,15 @@ function joinMultiLineSignature(lines: string[], startIndex: number): JoinedSign
 }
 
 function positionToIndex(content: string, position: VSCLS.Position): number {
-    const lines = content.split('\n');
     let index = 0;
-    for (let i = 0; i < position.line && i < lines.length; i++) {
-        index += lines[i].length + 1; // +1 for the \n
+    for (let i = 0; i < position.line; i++) {
+        const nextNewline = content.indexOf('\n', index);
+        if (nextNewline === -1) {
+            return content.length;
+        }
+        index = nextNewline + 1;
     }
-    return index + position.character;
+    return Math.min(index + position.character, content.length);
 }
 
 function findIdentifierAtCursor(content: string, cursorIndex: number): { identifier: string; isCallable: boolean; isTag: boolean } {
@@ -214,6 +217,7 @@ function findIdentifierAtCursor(content: string, cursorIndex: number): { identif
 
 export function parse(fileUri: URI, content: string, skipStatic: boolean): Types.ParserResults {
     const results = new Types.ParserResults();
+    const declaredValueNames = new Set<string>();
     let bracketDepth = 0;
     const lines = content.split(/\r?\n/);
     let docComment = "";
@@ -686,7 +690,8 @@ export function parse(fileUri: URI, content: string, skipStatic: boolean): Types
                             if (identMatch) {
                                 const tagName = identMatch[1];
                                 const varName = identMatch[2];
-                                if (!pawnKeywords.includes(varName) && !results.values.find(v => v.identifier === varName)) {
+                                if (!pawnKeywords.includes(varName) && !declaredValueNames.has(varName)) {
+                                    declaredValueNames.add(varName);
                                     if (tagName) {
                                         const tagCol = originalLine.indexOf(tagName, searchPos);
                                         if (tagCol >= 0) {
@@ -1139,37 +1144,25 @@ export function doSignatures(content: string, position: VSCLS.Position, callable
 
 export function doReferences(
     content: string, position: VSCLS.Position, documentUri: string,
-    data: Types.DocumentData, dependenciesData: Map<DM.FileDependency, Types.DocumentData>
+    data: Types.DocumentData,
+    dependenciesData: Map<DM.FileDependency, Types.DocumentData>,
+    getIncludeContent?: (uri: string) => string | null
 ): VSCLS.Location[] {
     const cursorIndex = positionToIndex(content, position);
     const result = findIdentifierAtCursor(content, cursorIndex);
     if (!result.identifier) return [];
 
-    const locations: VSCLS.Location[] = [];
     const identifier = result.identifier;
+    const locations: VSCLS.Location[] = [];
 
-    // Determine if the identifier is a callable (function/callback)
+    // Determine if this identifier is a callable (function/stock/public) or variable/constant
     let isCallable = result.isCallable;
     if (!isCallable) {
-        if (identifier.startsWith('@') || identifier.startsWith('public ')) {
-            isCallable = true;
-        } else {
-            for (const callable of data.callables) {
-                if (callable.identifier === identifier) {
-                    isCallable = true;
-                    break;
-                }
-            }
-            if (!isCallable) {
-                for (const depData of dependenciesData.values()) {
-                    for (const callable of depData.callables) {
-                        if (callable.identifier === identifier) {
-                            isCallable = true;
-                            break;
-                        }
-                    }
-                    if (isCallable) break;
-                }
+        const symbols = Helpers.getSymbols(data, dependenciesData);
+        for (const callable of symbols.callables) {
+            if (callable.identifier === identifier) {
+                isCallable = true;
+                break;
             }
         }
     }
@@ -1181,9 +1174,17 @@ export function doReferences(
     for (const [dep] of dependenciesData.entries()) {
         const depUri = dep.uri;
         try {
-            const depFsPath = URI.parse(depUri).fsPath;
-            if (FS.existsSync(depFsPath)) {
-                const depContent = FS.readFileSync(depFsPath, 'utf8');
+            let depContent: string | null = null;
+            if (getIncludeContent) {
+                depContent = getIncludeContent(depUri);
+            }
+            if (depContent === null) {
+                const depFsPath = URI.parse(depUri).fsPath;
+                if (FS.existsSync(depFsPath)) {
+                    depContent = FS.readFileSync(depFsPath, 'utf8');
+                }
+            }
+            if (depContent) {
                 findIdentifierOccurrences(depContent, identifier, depUri, locations, isCallable);
             }
         } catch (e) {
@@ -1208,7 +1209,7 @@ export function doReferences(
 
 function findIdentifierOccurrences(content: string, identifier: string, uri: string, locations: VSCLS.Location[], searchInStrings: boolean = false) {
     const lines = content.split(/\r?\n/);
-    const escapedId = identifier.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+    const escapedId = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(?<![a-zA-Z0-9_@])${escapedId}(?![a-zA-Z0-9_@])`, 'g');
     
     let inBlockComment = false;
@@ -1287,6 +1288,12 @@ export function getUsageTokens(
     // Values MUST be set last to ensure they always win over constants
     for (const v of symbols.values) symbolMap.set(v.identifier, { type: 2, modifier: v.isConst ? 2 : 0 });
 
+    // Pre-populate coordinate set for O(1) duplicate checks
+    const existingTokenCoords = new Set<string>();
+    for (const t of data.semanticTokens) {
+        existingTokenCoords.add(`${t.line}:${t.char}`);
+    }
+
     const lines = content.split('\n');
     let inBlockComment = false;
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -1324,9 +1331,10 @@ export function getUsageTokens(
         while ((tagMatch = tagRegex.exec(cleanLine)) !== null) {
             const tagName = tagMatch[1];
             const char = tagMatch.index;
+            const coordKey = `${lineIndex}:${char}`;
             
-            const existing = data.semanticTokens.find(t => t.line === lineIndex && t.char === char);
-            if (existing) continue;
+            if (existingTokenCoords.has(coordKey)) continue;
+            existingTokenCoords.add(coordKey);
 
             tokens.push({
                 line: lineIndex, char, length: tagName.length,
@@ -1334,27 +1342,34 @@ export function getUsageTokens(
             });
         }
 
+        // Pre-filter active local variables for this line (O(locals) once per line)
+        const lineLocals = new Map<string, Types.LocalVariableDescriptor>();
+        for (const lv of data.localVariables) {
+            if (lv.scopeStartLine <= lineIndex && lv.scopeEndLine >= lineIndex) {
+                lineLocals.set(lv.identifier, lv);
+            }
+        }
+
         const regex = /\b[A-Za-z_@][\w@]*\b/g;
         let match;
         while ((match = regex.exec(cleanLine)) !== null) {
             const ident = match[0];
             const char = match.index;
+            const coordKey = `${lineIndex}:${char}`;
             
             // Skip keywords (handled by TextMate), but we ALREADY handled tags above
             if (pawnKeywords.includes(ident)) continue;
             
-            const existing = data.semanticTokens.find(t => t.line === lineIndex && t.char === char) ||
-                             tokens.find(t => t.line === lineIndex && t.char === char);
-            if (existing) continue;
+            if (existingTokenCoords.has(coordKey)) continue;
 
-            const localVars = data.localVariables.filter(lv => lv.scopeStartLine <= lineIndex && lv.scopeEndLine >= lineIndex);
-            const localVar = localVars.find(lv => lv.identifier === ident);
+            const localVar = lineLocals.get(ident);
             if (localVar) {
                 const isParam = localVar.label.startsWith('(param)');
                 tokens.push({
                     line: lineIndex, char, length: ident.length,
                     tokenType: isParam ? 4 : 2, tokenModifiers: localVar.isConst ? 2 : 0
                 });
+                existingTokenCoords.add(coordKey);
                 continue;
             }
 
@@ -1364,12 +1379,12 @@ export function getUsageTokens(
                     line: lineIndex, char, length: ident.length,
                     tokenType: sym.type, tokenModifiers: sym.modifier
                 });
+                existingTokenCoords.add(coordKey);
             }
         }
     }
     return tokens;
 }
-
 
 export function doPrepareRename(
     content: string, position: VSCLS.Position
@@ -1452,4 +1467,177 @@ export function doRename(
     }
 
     return edits;
+}
+
+export function doDocumentHighlight(
+    content: string,
+    position: VSCLS.Position,
+    data: Types.DocumentData,
+    dependenciesData: Map<DM.FileDependency, Types.DocumentData>
+): VSCLS.DocumentHighlight[] {
+    const cursorIndex = positionToIndex(content, position);
+    const result = findIdentifierAtCursor(content, cursorIndex);
+    if (!result.identifier) return [];
+
+    const identifier = result.identifier;
+    const locations: VSCLS.Location[] = [];
+
+    let isCallable = result.isCallable;
+    if (!isCallable) {
+        const symbols = Helpers.getSymbols(data, dependenciesData);
+        for (const callable of symbols.callables) {
+            if (callable.identifier === identifier) {
+                isCallable = true;
+                break;
+            }
+        }
+    }
+
+    findIdentifierOccurrences(content, identifier, data.uri, locations, isCallable);
+
+    return locations.map(loc => ({
+        range: loc.range,
+        kind: VSCLS.DocumentHighlightKind.Text
+    }));
+}
+
+export function doFoldingRanges(content: string): VSCLS.FoldingRange[] {
+    const ranges: VSCLS.FoldingRange[] = [];
+    const lines = content.split(/\r?\n/);
+    
+    const preprocessorStack: number[] = [];
+    const braceStack: number[] = [];
+    let blockCommentStartLine = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // 1. Block comments /* ... */
+        if (blockCommentStartLine !== -1) {
+            if (line.includes('*/')) {
+                if (i > blockCommentStartLine) {
+                    ranges.push({
+                        startLine: blockCommentStartLine,
+                        endLine: i,
+                        kind: VSCLS.FoldingRangeKind.Comment
+                    });
+                }
+                blockCommentStartLine = -1;
+            }
+        } else if (line.includes('/*') && !line.includes('*/')) {
+            blockCommentStartLine = i;
+        }
+
+        // 2. Preprocessor conditionals (#if, #ifdef, #ifndef, #else, #endif)
+        if (trimmed.startsWith('#if') || trimmed.startsWith('#ifdef') || trimmed.startsWith('#ifndef')) {
+            preprocessorStack.push(i);
+        } else if (trimmed.startsWith('#else') || trimmed.startsWith('#elseif') || trimmed.startsWith('#elif')) {
+            if (preprocessorStack.length > 0) {
+                const start = preprocessorStack.pop()!;
+                if (i - 1 > start) {
+                    ranges.push({ startLine: start, endLine: i - 1, kind: VSCLS.FoldingRangeKind.Region });
+                }
+                preprocessorStack.push(i);
+            }
+        } else if (trimmed.startsWith('#endif')) {
+            if (preprocessorStack.length > 0) {
+                const start = preprocessorStack.pop()!;
+                if (i > start) {
+                    ranges.push({ startLine: start, endLine: i, kind: VSCLS.FoldingRangeKind.Region });
+                }
+            }
+        }
+
+        // 3. Braces { ... }
+        let clean = stripComments(line, true);
+        clean = clean.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, match => ' '.repeat(match.length));
+        clean = clean.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, match => ' '.repeat(match.length));
+
+        for (let c = 0; c < clean.length; c++) {
+            if (clean[c] === '{') {
+                braceStack.push(i);
+            } else if (clean[c] === '}') {
+                if (braceStack.length > 0) {
+                    const startLine = braceStack.pop()!;
+                    if (i > startLine) {
+                        ranges.push({
+                            startLine: startLine,
+                            endLine: i
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    return ranges;
+}
+
+export function doWorkspaceSymbols(
+    query: string,
+    documentsData: Map<string, Types.DocumentData>,
+    dependenciesData: Map<DM.FileDependency, Types.DocumentData>
+): VSCLS.SymbolInformation[] {
+    const results: VSCLS.SymbolInformation[] = [];
+    const lowerQuery = query ? query.toLowerCase() : '';
+    const seenSymbols = new Set<string>();
+
+    function addSymbolsFromDoc(docData: Types.DocumentData) {
+        for (const c of docData.callables) {
+            const key = `func:${docData.uri}:${c.identifier}`;
+            if (seenSymbols.has(key)) continue;
+            if (!lowerQuery || c.identifier.toLowerCase().includes(lowerQuery)) {
+                seenSymbols.add(key);
+                results.push({
+                    name: c.identifier,
+                    kind: VSCLS.SymbolKind.Function,
+                    location: {
+                        uri: docData.uri,
+                        range: { start: c.start, end: c.end }
+                    },
+                    containerName: c.isForward ? 'forward' : 'function'
+                });
+            }
+        }
+        for (const v of docData.values) {
+            const key = `val:${docData.uri}:${v.identifier}`;
+            if (seenSymbols.has(key)) continue;
+            if (!lowerQuery || v.identifier.toLowerCase().includes(lowerQuery)) {
+                seenSymbols.add(key);
+                results.push({
+                    name: v.identifier,
+                    kind: VSCLS.SymbolKind.Variable,
+                    location: {
+                        uri: docData.uri,
+                        range: v.range
+                    }
+                });
+            }
+        }
+        for (const c of docData.constants) {
+            const key = `const:${docData.uri}:${c.identifier}`;
+            if (seenSymbols.has(key)) continue;
+            if (!lowerQuery || c.identifier.toLowerCase().includes(lowerQuery)) {
+                seenSymbols.add(key);
+                results.push({
+                    name: c.identifier,
+                    kind: VSCLS.SymbolKind.Constant,
+                    location: {
+                        uri: docData.uri,
+                        range: c.range
+                    }
+                });
+            }
+        }
+    }
+
+    for (const docData of documentsData.values()) {
+        addSymbolsFromDoc(docData);
+    }
+    for (const depData of dependenciesData.values()) {
+        addSymbolsFromDoc(depData);
+    }
+
+    return results.slice(0, 100);
 }

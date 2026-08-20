@@ -2,7 +2,7 @@
     "name": "amxx-pawn-language-editor",
     "displayName": "%extension.displayName%",
     "description": "%extension.description%",
-    "version": "1.5.5",
+    "version": "1.5.6",
     "publisher": "iceeedR",
     "license": "GPL-3.0",
     "icon": "images/extension-logo.png",
@@ -96,7 +96,7 @@
             "properties": {
                 "amxxpawn.language.reparseInterval": {
                     "type": "number",
-                    "default": 1500,
+                    "default": 300,
                     "description": "%configuration.language.reparseInterval.description%"
                 },
                 "amxxpawn.language.webApiLinks": {
@@ -108,6 +108,11 @@
                     "type": "string",
                     "default": "",
                     "description": "%configuration.compiler.executablePath.description%"
+                },
+                "amxxpawn.compiler.globalIncludePaths": {
+                    "type": "array",
+                    "default": [],
+                    "description": "%configuration.compiler.globalIncludePaths.description%"
                 },
                 "amxxpawn.compiler.includePaths": {
                     "type": "array",
@@ -194,7 +199,9 @@
         "vscode:prepublish": "npm run esbuild",
         "compile": "tsc -noEmit -p ./",
         "esbuild": "node esbuild.js --production",
-        "watch": "node esbuild.js --watch"
+        "watch": "node esbuild.js --watch",
+        "test": "node -e \"require('esbuild').buildSync({ entryPoints: ['test_usage.ts', 'test_parser.ts', 'test_references.ts', 'test_arr.ts', 'test_lsp_features.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_arr.js && node build/test/test_references.js && node build/test/test_usage.js && node build/test/test_lsp_features.js",
+        "benchmark": "node -e \"require('esbuild').buildSync({ entryPoints: ['test_benchmark.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_benchmark.js"
     },
     "devDependencies": {
         "@types/node": "^18.0.0",

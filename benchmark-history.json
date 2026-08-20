@@ -1,0 +1,30 @@
+[
+  {
+    "version": "1.5.5 (Legacy Baseline)",
+    "date": "2026-08-19",
+    "timestamp": 1787111186166,
+    "metrics": {
+      "positionToIndexMs": 2043.54,
+      "positionToIndexLegacyMs": 2043.54,
+      "fullReparseAvgMs": 38.5,
+      "semanticTokensAvgMs": 82.4,
+      "symbolsLookupCachedMs": 1558.07,
+      "symbolsLookupUncachedMs": 1558.07,
+      "heapUsedMB": 38.4
+    }
+  },
+  {
+    "version": "v1.5.6",
+    "date": "2026-08-20",
+    "timestamp": 1787198204521,
+    "metrics": {
+      "positionToIndexMs": 256.19,
+      "positionToIndexLegacyMs": 1811.67,
+      "fullReparseAvgMs": 4.49,
+      "semanticTokensAvgMs": 10.97,
+      "symbolsLookupCachedMs": 3.27,
+      "symbolsLookupUncachedMs": 1324.47,
+      "heapUsedMB": 25.39
+    }
+  }
+]

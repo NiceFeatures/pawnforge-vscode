@@ -34,6 +34,47 @@ This project revives and modernizes the development experience for **AMX Mod X**
 
 It transforms VS Code into a powerful IDE for Pawn, bringing features that were previously exclusive to newer languages.
 
+## ✨ What's New (v1.5.6)
+### Added
+- **Suporte a Variáveis de Ambiente (`${env:...}`)**: Use variáveis de ambiente do sistema operacional (ex: `${env:AMXX_HOME}`, `${env:USERPROFILE}`, `${env:HLDS_DIR}`) nos caminhos de includes e do compilador.
+- * **Environment Variables Support (`${env:...}`)**: Use system environment variables (e.g. `${env:AMXX_HOME}`, `${env:USERPROFILE}`, `${env:HLDS_DIR}`) in include and compiler paths.*
+- **Expansão Recursiva de Includes (`**` e `*`)**: Suporte a padrões glob como `${workspaceRoot}/include/**` para buscar automaticamente em todas as subpastas por arquivos `.inc`.
+- * **Recursive Include Expansion (`**` & `*`)**: Support for glob patterns like `${workspaceRoot}/include/**` to automatically discover all subfolders containing `.inc` headers.*
+- **Configuração de Includes Globais (`amxxpawn.compiler.globalIncludePaths`)**: Registre includes padrão no `settings.json` global do VS Code e compartilhe entre todos os seus projetos.
+- * **Global Includes Setting (`amxxpawn.compiler.globalIncludePaths`)**: Register default include directories in global VS Code settings and share across all your projects.*
+- **Document Highlight**: Ao selecionar ou posicionar o cursor em qualquer identificador, todas as suas ocorrências no documento atual são automaticamente destacadas.
+- * **Document Highlight**: Highlighting an identifier automatically highlights all its occurrences across the active document.*
+- **Folding Ranges**: Suporte nativo a recolhimento e expansão de blocos pre-processadores (`#if/#else/#endif`), comentários em bloco (`/* */`), `enum { }` e funções `{ }`.
+- * **Folding Ranges**: Native code folding for preprocessor directives (`#if/#else/#endif`), block comments (`/* */`), `enum` blocks, and function braces.*
+- **Workspace Symbols (`Ctrl+T`)**: Pesquisa global rápida de símbolos (funções, stocks, constantes, macros) em todos os arquivos e includes do projeto.
+- * **Workspace Symbols (`Ctrl+T`)**: Global workspace symbol search across all open files and loaded `.inc` dependencies.*
+- **Compatibilidade com o Compilador `amxx-nova-pc`**: Suporte nativo ao compilador moderno `amxx-nova-pc`, com detecção aprimorada de término de compilação, suporte a flags `-E`/`-d3` e estatísticas de memória.
+- * **`amxx-nova-pc` Compiler Compatibility**: Native support for modern `amxx-nova-pc` compiler, featuring updated compilation termination detection, `-E`/`-d3` flags support, and memory statistics.*
+- **Status Bar de Compilação**: Indicador visual de status e tempo de compilação em tempo real na barra inferior do VS Code com atalho de clique para compilar.
+- * **Compilation Status Bar**: Real-time compilation status and elapsed time indicator in the VS Code status bar.*
+
+### Performance & Optimization
+- **Cache de Diretórios de Include**: Resolução de diretórios com glob (`**`) agora é cacheada em memória e reutilizada para todos os `#include`, eliminando varreduras síncronas redundantes no disco durante a digitação.
+- * **Include Directory Caching**: Glob path resolution (`**`) is now cached in memory and reused across `#include` directives, eliminating redundant synchronous disk traversals.*
+- **Cache de Símbolos (`getSymbols`)**: Símbolos e árvore de dependências agora são cacheados por documento, acelerando autocomplete, hover e navegação de definições (**530x mais rápido**).
+- * **Symbol Graph Caching (`getSymbols`)**: Symbols and dependency graphs are now cached per document, speeding up autocomplete, hover, and definition lookups (**530x faster**).*
+- **Semantic Tokens Otimizados ($O(1)$)**: Redução drástica da sobrecarga de CPU ao digitar através de mapeamento indexado de variáveis locais e verificação de coordenadas em tempo constante (~13ms para 1.700 tokens).
+- * **Optimized Semantic Tokens ($O(1)$)**: Drastically reduced typing CPU overhead via indexed local variables mapping and constant-time coordinate checks (~13ms for 1,700 tokens).*
+- **Find References em Memória**: Busca de referências reutiliza diretamente o cache em memória dos includes.
+- * **In-Memory Find References**: Finding references now leverages in-memory include cache directly.*
+- **Otimização do Pipeline de Compilação**: Cache de diretórios de include resolvidos no cliente, poda de diretórios sem arquivos `.inc` e cache do executável `amxxpc` para acelerar o acionamento do build no editor.
+- * **Compilation Pipeline Optimization**: Client include directory caching, pruning of folders without `.inc` files, and compiler executable caching.*
+- **Suíte de Benchmark e Histórico de Builds (`npm run benchmark`)**: Ferramenta automatizada de medição em ms que persiste o histórico de desempenho em [`benchmark-history.json`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/benchmark-history.json) e gera relatórios em [`BENCHMARKS.md`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/BENCHMARKS.md).
+- * **Benchmark Suite & Build History (`npm run benchmark`)**: Automated millisecond benchmark tool persisting history in [`benchmark-history.json`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/benchmark-history.json) and generating comparison tables in [`BENCHMARKS.md`](file:///c:/Users/iceeedR/Desktop/amxxpawn-language/BENCHMARKS.md).*
+
+### Fixed
+- **Controle de Reparse (`reparseInterval`)**: Conexão da configuração ao debounce do servidor (padrão de 300ms).
+- * **Reparse Interval Control**: Connected setting to server debounce with snappy 300ms default.*
+- **Segurança e Testes**: Proteção contra timing attacks no hash e suite de testes automatizada `npm test`.
+- * **Security & Testing**: Timing attack protection on hashes and automated `npm test` suite.*
+
+---
+
 ## ✨ What's New (v1.5.5)
 ### Fixed & Security
 - **Segurança de Processos e Prevenção de Crash**: Refatorada a invocação do compilador `amxxpc` e extração de arquivos para eliminar vulnerabilidades de shell e prevenir travamentos em `compileLocal`.
@@ -257,9 +298,13 @@ Unlike the original extension, this **Extended** version provides tailored optim
   - **Functions in Tasks:** Navigate directly to the function when its name is passed as a string (e.g., `set_task_ex(..., "my_function", ...)`).
 - **🔍 Find All References:** `Shift+F12` on any symbol to find all its occurrences across the current document and loaded includes.
 - **✏️ Rename Symbol:** `F2` to rename any variable, function, or constant across the entire document — with keyword protection.
+- **🔦 Document Highlight:** Automatically highlight all occurrences of the variable, function, or constant under the cursor.
+- **🗂️ Folding Ranges:** Native code folding support for preprocessor directives (`#if/#else/#endif`), block comments (`/* */`), `enum { }`, and function bodies (`{ }`).
+- **🌐 Workspace Symbols (`Ctrl+T`):** Search and jump across all functions, stocks, constants, and macros in the workspace and loaded include dependencies.
 - **💡 Hover Information:** Hover over a function or variable to seamlessly read its full definition and documentation without leaving your current context.
 - **⚡ Real-time Diagnostics:** The extension boldly warns you if an `#include` cannot be found or resolving fails, helping you fix errors long before compiling.
 - **🔴 Inline Error Display:** Compilation errors appear directly on the code line as inline text, next to the red underline.
+- **📊 Compilation Status Bar:** Real-time visual indicator in the VS Code status bar showing compilation result and elapsed time (`$(check) AMXX: OK (0.04s)`) with one-click compile action.
 - **📥 Auto-Download Compiler:** No compiler configured? The extension automatically downloads and sets up the AMXX compiler from GitHub.
 - **🏗️ Plugin Scaffold:** Create fully equipped plugins instantly (Menus, Cvars, Event Observers) using the `AMXXPawn: Create New Plugin (Scaffold)` command.
 - **🛠️ Integrated & Custom Compilation:** Compile your plugins instantly from VS Code using unified tasks setup or custom local environment pathways.
@@ -276,7 +321,7 @@ You can also install it directly from the [Marketplace page](https://marketplace
 
 ## ⚙️ Configuration (Optional Customization)
 
-By default, the extension **automatically downloads and sets up the AMXX compiler for you (Zero Configuration!)**. However, if you want to use a specific, custom compiler version, you can tell the extension where it is located.
+By default, the extension **automatically downloads and sets up the AMXX compiler for you (Zero Configuration!)**. However, if you want to use a specific, custom compiler version, custom include directories, or environment variables, you can configure them easily.
 
 1. Open VS Code Settings (`Ctrl + ,`).
 2. Click the "Open settings.json" icon in the upper-right corner.
@@ -288,15 +333,24 @@ By default, the extension **automatically downloads and sets up the AMXX compile
     // (Leave empty or undefined to use the auto-downloaded compiler)
     "amxxpawn.compiler.executablePath": "C:\\path\\to\\your\\compiler\\amxxpc.exe",
 
-    // List of folders where the extension should look for .inc files.
-    // (Leave empty to use the auto-downloaded compiler's include directory)
+    // Global list of include folders shared across all your projects (User Settings).
+    // Supports environment variables (${env:VAR}) and recursive globs (/**).
+    "amxxpawn.compiler.globalIncludePaths": [
+        "${env:AMXX_HOME}\\scripting\\include\\**"
+    ],
+
+    // Project/workspace-specific list of folders where the extension looks for .inc files.
+    // Supports ${workspaceRoot}, environment variables (${env:VAR}), and globs (/**).
     "amxxpawn.compiler.includePaths": [
-        "C:\\path\\to\\your\\compiler\\include"
+        "${workspaceRoot}\\include\\**"
     ],
 
     // Enables or disables inline text errors in the editor (false by default).
     // Keep it false if you use extensions like Error Lens to avoid duplicate messages.
     "amxxpawn.compiler.inlineErrors": false,
+
+    // Debounce interval in milliseconds to reprocess symbols while typing (default: 300ms).
+    "amxxpawn.language.reparseInterval": 300,
 
     // --- RECOMMENDED SETTING ---
     // For a cleaner and smarter autocomplete experience,
@@ -305,15 +359,23 @@ By default, the extension **automatically downloads and sets up the AMXX compile
 }
 ```
 
-**IMPORTANT for Windows users:** In JSON files, you must use double backslashes (`\\`) or forward slashes (`/`) in paths.
+**Variables & Globbing Supported in Paths:**
+- `${workspaceRoot}` — Workspace root folder.
+- `${fileDirname}` — Directory of the current open file.
+- `${env:VAR_NAME}` — Any system environment variable (e.g. `${env:HLDS_DIR}`, `${env:USERPROFILE}`).
+- `**` / `*` — Recursive globbing. Using `include/**` automatically includes all nested folders.
 
-**Practical Example:**
+**Practical Examples:**
 
 ```json
 {
-    "amxxpawn.compiler.executablePath": "C:/AMXX/compiler/amxxpc.exe",
+    // Example 1: Using environment variables and recursive includes
+    "amxxpawn.compiler.executablePath": "${env:HLDS_PATH}/cstrike/addons/amxmodx/scripting/amxxpc.exe",
+    "amxxpawn.compiler.globalIncludePaths": [
+        "${env:HLDS_PATH}/cstrike/addons/amxmodx/scripting/include/**"
+    ],
     "amxxpawn.compiler.includePaths": [
-        "C:/AMXX/compiler/include"
+        "${workspaceRoot}/scripting/include/**"
     ]
 }
 ```

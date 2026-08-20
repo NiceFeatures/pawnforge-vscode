@@ -4,7 +4,9 @@ node_modules
 .env
 context.md
 .agent
+.agents
 dist
-docs
 test_*
-test_arr.ts
+graphify-out
+*.sma
+*.amxx

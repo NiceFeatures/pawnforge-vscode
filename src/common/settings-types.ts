@@ -1,5 +1,6 @@
 export interface CompilerSettings {
     executablePath: string;
+    globalIncludePaths?: string[];
     includePaths: string[];
     options: string[];
     outputType: string;
@@ -18,4 +19,7 @@ export interface LanguageSettings {
 export interface SyncedSettings {
     compiler: CompilerSettings;
     language: LanguageSettings;
+    globalIncludePaths?: string[];
+    includePaths?: string[];
 }
+

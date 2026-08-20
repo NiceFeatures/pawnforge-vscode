@@ -78,10 +78,53 @@ function extractZip(zipPath: string, destDir: string): Promise<void> {
     });
 }
 
+let cachedCompilerPath: string | null = null;
+const clientResolvedIncludeDirsCache: Map<string, string[]> = new Map();
+
+export function clearClientCompilerCache() {
+    clientResolvedIncludeDirsCache.clear();
+    cachedCompilerPath = null;
+}
+
+function containsIncludeFiles(dirPath: string): boolean {
+    try {
+        const entries = FS.readdirSync(dirPath);
+        return entries.some(f => f.toLowerCase().endsWith('.inc'));
+    } catch {
+        return false;
+    }
+}
+
+export function getResolvedIncludeDirsClient(rawIncludePaths: string[], workspaceRoot: string | undefined, inputPath: string): string[] {
+    const cacheKey = `${workspaceRoot || ''}::${Path.dirname(inputPath)}::${rawIncludePaths.join(';')}`;
+    const cached = clientResolvedIncludeDirsCache.get(cacheKey);
+    if (cached) return cached;
+
+    const allDirs = [
+        ...new Set(
+            rawIncludePaths
+                .map((path) => Helpers.resolvePathVariables(path, workspaceRoot, inputPath))
+                .flatMap((path) => Helpers.resolvePathPattern(path))
+        )
+    ];
+
+    // Filter out directories that don't contain any .inc files to avoid passing dead folders to amxxpc
+    const validIncludeDirs = allDirs.filter(dir => containsIncludeFiles(dir));
+    clientResolvedIncludeDirsCache.set(cacheKey, validIncludeDirs);
+    return validIncludeDirs;
+}
+
 function findAmxxpc(dir: string): string | null {
+    if (cachedCompilerPath && FS.existsSync(cachedCompilerPath)) {
+        if (cachedCompilerPath.startsWith(dir)) return cachedCompilerPath;
+    }
+
     const exeName = process.platform === 'win32' ? 'amxxpc.exe' : 'amxxpc';
     const direct = Path.join(dir, exeName);
-    if (FS.existsSync(direct)) return direct;
+    if (FS.existsSync(direct)) {
+        cachedCompilerPath = direct;
+        return direct;
+    }
 
     // Check subdirectories (e.g. compiler/)
     try {
@@ -89,7 +132,10 @@ function findAmxxpc(dir: string): string | null {
         for (const entry of entries) {
             if (entry.isDirectory()) {
                 const nested = Path.join(dir, entry.name, exeName);
-                if (FS.existsSync(nested)) return nested;
+                if (FS.existsSync(nested)) {
+                    cachedCompilerPath = nested;
+                    return nested;
+                }
             }
         }
     } catch { /* ignore */ }
@@ -164,7 +210,17 @@ function verifyFileIntegrity(filePath: string, expectedHash: string, algorithm: 
         stream.on('end', () => {
             const calculatedHash = hash.digest('hex');
             // Check if the calculated hash matches the expected one securely
-            resolve(calculatedHash.toLowerCase() === expectedHash.toLowerCase());
+            try {
+                const bufCalculated = Buffer.from(calculatedHash.toLowerCase(), 'utf8');
+                const bufExpected = Buffer.from(expectedHash.toLowerCase(), 'utf8');
+                if (bufCalculated.length === bufExpected.length && crypto.timingSafeEqual(bufCalculated, bufExpected)) {
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            } catch {
+                resolve(false);
+            }
         });
     });
 }
@@ -184,12 +240,39 @@ export const inlineErrorDecorationType = VSC.window.createTextEditorDecorationTy
     isWholeLine: true
 });
 
+let compileStatusBarItem: VSC.StatusBarItem | null = null;
+
+export function registerCompileStatusBarItem(context: VSC.ExtensionContext): VSC.StatusBarItem {
+    if (!compileStatusBarItem) {
+        compileStatusBarItem = VSC.window.createStatusBarItem(VSC.StatusBarAlignment.Right, 100);
+        compileStatusBarItem.command = 'amxxpawn.compile';
+        compileStatusBarItem.text = '$(play) AMXX: Compile';
+        compileStatusBarItem.tooltip = 'Click to compile AMXX Pawn plugin (F9)';
+        context.subscriptions.push(compileStatusBarItem);
+    }
+    return compileStatusBarItem;
+}
+
+export function updateCompileStatusBarItemVisibility(editor: VSC.TextEditor | undefined) {
+    if (!compileStatusBarItem) return;
+    if (editor && editor.document && editor.document.languageId === 'amxxpawn') {
+        compileStatusBarItem.show();
+    } else {
+        compileStatusBarItem.hide();
+    }
+}
+
 function doCompile(executablePath: string, inputPath: string, compilerSettings: Settings.CompilerSettings, outputChannel: VSC.OutputChannel, diagnosticCollection: VSC.DiagnosticCollection) {
     diagnosticCollection.clear();
     VSC.window.visibleTextEditors.forEach(e => e.setDecorations(inlineErrorDecorationType, []));
 
+    if (compileStatusBarItem) {
+        compileStatusBarItem.text = '$(sync~spin) AMXX: Compiling...';
+        compileStatusBarItem.backgroundColor = undefined;
+        compileStatusBarItem.show();
+    }
+
     const startTime = process.hrtime();
-    // ... rest of doCompile logic to outputData.entries
     let outputPath = '';
     const workspaceRoot = VSC.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
@@ -207,10 +290,16 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
         return;
     }
 
+    const rawIncludePaths = [
+        ...(compilerSettings.globalIncludePaths || []),
+        ...(compilerSettings.includePaths || [])
+    ];
+    const resolvedIncludeDirs = getResolvedIncludeDirsClient(rawIncludePaths, workspaceRoot, inputPath);
+
     const compilerArgs: string[] = [
         inputPath,
         ...compilerSettings.options,
-        ...compilerSettings.includePaths.map((path) => `-i${Helpers.resolvePathVariables(path, workspaceRoot, inputPath)}`),
+        ...resolvedIncludeDirs.map((dir) => `-i${dir}`),
         `-o${outputPath}`
     ];
 
@@ -362,12 +451,27 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
         const dataSizeMatch = compilerStdout.match(/Data size:\s*(\d+)\s*bytes/);
         const totalSizeMatch = compilerStdout.match(/Total requirements:\s*(\d+)\s*bytes/);
 
-        if (hasErrors) {
+        if (hasErrors || exitCode !== 0) {
             outputChannel.appendLine(VSC.l10n.t('❌ Compilation failed after {0} seconds. See errors above.', compilationTime));
+            if (compileStatusBarItem) {
+                compileStatusBarItem.text = `$(error) AMXX: Failed (${compilationTime}s)`;
+                compileStatusBarItem.backgroundColor = new VSC.ThemeColor('statusBarItem.errorBackground');
+                compileStatusBarItem.show();
+            }
         } else if (hasWarnings) {
             outputChannel.appendLine(VSC.l10n.t('⚠️  Compilation completed with warnings in {0} seconds.', compilationTime));
             outputChannel.appendLine(VSC.l10n.t('   Output generated at: {0}', outputPath));
-        } else if (/Done\./.test(compilerStdout)) {
+            if (compileStatusBarItem) {
+                compileStatusBarItem.text = `$(warning) AMXX: Warnings (${compilationTime}s)`;
+                compileStatusBarItem.backgroundColor = new VSC.ThemeColor('statusBarItem.warningBackground');
+                compileStatusBarItem.show();
+            }
+        } else {
+            if (compileStatusBarItem) {
+                compileStatusBarItem.text = `$(check) AMXX: OK (${compilationTime}s)`;
+                compileStatusBarItem.backgroundColor = undefined;
+                compileStatusBarItem.show();
+            }
             try {
                 const stats = FS.statSync(outputPath);
                 const fileSizeInKB = (stats.size / 1024).toFixed(2);

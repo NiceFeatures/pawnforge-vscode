@@ -13,6 +13,10 @@ export function getSymbols(
     data: Types.DocumentData,
     dependenciesData: Map<DM.FileDependency, Types.DocumentData>): SymbolsResults {
 
+    if (data.cachedSymbols) {
+        return data.cachedSymbols;
+    }
+
     const callables: Types.CallableDescriptor[] = [];
     const values: Types.ValueDescriptor[] = [];
     const constants: Types.ConstantDescriptor[] = [];
@@ -50,11 +54,13 @@ export function getSymbols(
 
     walk(data);
 
-    return {
+    const result: SymbolsResults = {
         callables,
         values,
         constants
     };
+    data.cachedSymbols = result;
+    return result;
 }
 
 export function getLocalVariables(

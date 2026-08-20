@@ -5,6 +5,7 @@
         "configuration.language.reparseInterval.description": "O menor intervalo permitido entre duas reanálises de sintaxe do mesmo arquivo",
         "configuration.language.webApiLinks.description": "Se diretivas #include com nomes de arquivo do pacote AMXX devem apontar para a referência Web API",
         "configuration.compiler.executablePath.description": "Localização do compilador",
+        "configuration.compiler.globalIncludePaths.description": "Uma lista global de diretórios de includes para o compilador e language server",
         "configuration.compiler.includePaths.description": "Uma lista de caminhos de include para o compilador",
         "configuration.compiler.options.description": "Uma lista de opções adicionais que devem ser passadas ao compilador",
         "configuration.compiler.showInfoMessages.description": "Mostra informações adicionais como argumentos do comando e código de saída ao compilar",

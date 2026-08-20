@@ -29,7 +29,12 @@ import {
     RenameParams,
     PrepareRenameParams,
     WorkspaceEdit,
-    TextEdit
+    TextEdit,
+    DocumentHighlight,
+    DocumentHighlightParams,
+    FoldingRange,
+    FoldingRangeParams,
+    WorkspaceSymbolParams
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
@@ -38,7 +43,7 @@ import * as Parser from './parser';
 import * as Types from './types';
 import * as DM from './dependency-manager';
 import * as Helpers from './helpers';
-import { resolvePathVariables } from '../common/helpers';
+import { resolvePathPattern, resolvePathVariables } from '../common/helpers';
 
 const connection = createConnection(ProposedFeatures.all);
 const documentsManager = new TextDocuments(TextDocument);
@@ -52,12 +57,13 @@ let hasConfigurationCapability: boolean = false;
 let globalStoragePath: string | null = null;
 let cachedAutoIncludePath: string | null = null;
 
-// --- Fix #2: Cache de conteúdo de includes ---
+// --- Fix #2: Cache de conteúdo de includes e diretórios resolvidos ---
 const includeContentCache: Map<string, string> = new Map();
+const cachedResolvedIncludeDirs: Map<string, string[]> = new Map();
 
 // --- Fix #3: Debounce timers por documento ---
 const reparseTimers: Map<string, NodeJS.Timeout> = new Map();
-const REPARSE_DELAY = 300; // ms
+const DEFAULT_REPARSE_DELAY = 300; // ms
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
     workspaceRoot = params.rootUri;
@@ -74,6 +80,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
             definitionProvider: true,
             signatureHelpProvider: { triggerCharacters: ['(', ','] },
             documentSymbolProvider: true,
+            workspaceSymbolProvider: true,
+            documentHighlightProvider: true,
+            foldingRangeProvider: true,
             completionProvider: { resolveProvider: false, triggerCharacters: ['(', ',', '=', '@', '#'] },
             hoverProvider: true,
             referencesProvider: true,
@@ -104,14 +113,20 @@ connection.onDidChangeConfiguration(async () => {
             syncedSettings = { compiler: {} as Settings.CompilerSettings, language: {} as Settings.LanguageSettings };
         }
     }
-    // Limpa cache de includes quando configuração muda (paths podem ter mudado)
+    // Limpa cache de includes e diretórios quando configuração muda
     includeContentCache.clear();
+    cachedResolvedIncludeDirs.clear();
+    documentsData.forEach(d => { d.cachedSymbols = null; });
+    dependenciesData.forEach(d => { d.cachedSymbols = null; });
     documentsManager.all().forEach((doc) => scheduleReparse(doc));
 });
 
 connection.onNotification('amxxpawn/reparseAll', () => {
     cachedAutoIncludePath = null;
     includeContentCache.clear();
+    cachedResolvedIncludeDirs.clear();
+    documentsData.forEach(d => { d.cachedSymbols = null; });
+    dependenciesData.forEach(d => { d.cachedSymbols = null; });
     documentsManager.all().forEach((doc) => scheduleReparse(doc));
 });
 
@@ -119,6 +134,7 @@ connection.onNotification('amxxpawn/reparseAll', () => {
 // Quando um .inc é salvo/modificado externamente, invalida o cache e re-parseia
 connection.onDidChangeWatchedFiles((params) => {
     let needsReparse = false;
+    cachedResolvedIncludeDirs.clear();
 
     for (const change of params.changes) {
         const changedUri = change.uri;
@@ -154,6 +170,8 @@ connection.onDidChangeWatchedFiles((params) => {
     }
 
     if (needsReparse) {
+        documentsData.forEach(d => { d.cachedSymbols = null; });
+        dependenciesData.forEach(d => { d.cachedSymbols = null; });
         documentsManager.all().forEach((doc) => scheduleReparse(doc));
     }
 });
@@ -189,7 +207,7 @@ async function validateAndReparse(document: TextDocument): Promise<void> {
     doReparse(document);
 }
 
-// --- Fix #3: Debounce — agenda reparse com delay ---
+// --- Fix #3: Debounce — agenda reparse com delay configurável ---
 function scheduleReparse(document: TextDocument) {
     const uri = document.uri;
 
@@ -199,13 +217,17 @@ function scheduleReparse(document: TextDocument) {
         clearTimeout(existingTimer);
     }
 
+    const delay = (syncedSettings?.language?.reparseInterval !== undefined && syncedSettings.language.reparseInterval >= 0)
+        ? syncedSettings.language.reparseInterval
+        : DEFAULT_REPARSE_DELAY;
+
     // Agenda novo reparse com delay
     const timer = setTimeout(() => {
         reparseTimers.delete(uri);
         validateAndReparse(document).catch(e => {
             connection.console.error(`Error during reparse for ${uri}: ${e}`);
         });
-    }, REPARSE_DELAY);
+    }, delay);
 
     reparseTimers.set(uri, timer);
 }
@@ -282,13 +304,35 @@ connection.onDocumentSymbol((params): SymbolInformation[] | null => {
     }));
 });
 
+function getRawIncludePaths(): string[] {
+    const globalPaths = syncedSettings?.compiler?.globalIncludePaths || syncedSettings?.globalIncludePaths || [];
+    const localPaths = syncedSettings?.compiler?.includePaths || syncedSettings?.includePaths || [];
+    return [...globalPaths, ...localPaths];
+}
+
+function getResolvedIncludeDirs(documentPath?: string): string[] {
+    const workspacePath = workspaceRoot ? URI.parse(workspaceRoot).fsPath : undefined;
+    const cacheKey = documentPath || '__global__';
+    const cached = cachedResolvedIncludeDirs.get(cacheKey);
+    if (cached !== undefined) return cached;
+
+    const rawPaths = getRawIncludePaths();
+    const resolvedIncludePaths = rawPaths.map(p => resolvePathVariables(p, workspacePath, documentPath));
+    const finalDirs = [...new Set(resolvedIncludePaths.flatMap(resolvePathPattern))];
+    cachedResolvedIncludeDirs.set(cacheKey, finalDirs);
+    return finalDirs;
+}
+
 connection.onCompletion((params: TextDocumentPositionParams): CompletionItem[] | null => {
     const document = documentsManager.get(params.textDocument.uri);
     if (!document) return null;
     const data = documentsData.get(document.uri);
     if (!data) return null;
 
-    return Parser.doCompletions(connection, document.getText(), params.position, data, dependenciesData, syncedSettings?.compiler?.includePaths || []);
+    const documentPath = URI.parse(document.uri).fsPath;
+    const finalIncludePaths = getResolvedIncludeDirs(documentPath);
+
+    return Parser.doCompletions(connection, document.getText(), params.position, data, dependenciesData, finalIncludePaths);
 });
 
 connection.onHover((params: TextDocumentPositionParams): Hover | null => {
@@ -329,11 +373,8 @@ documentsManager.onDidChangeContent((change) => {
 });
 
 function resolveIncludePath(filename: string, documentPath: string, localTo: string | undefined): string | undefined {
-    const workspacePath = workspaceRoot ? URI.parse(workspaceRoot).fsPath : undefined;
+    const finalIncludePaths = [...getResolvedIncludeDirs(documentPath)];
 
-    const resolvedIncludePaths = (syncedSettings?.compiler?.includePaths || []).map(p => resolvePathVariables(p, workspacePath, documentPath));
-
-    const finalIncludePaths = [...resolvedIncludePaths];
     if (localTo !== undefined) {
         finalIncludePaths.unshift(localTo);
     }
@@ -471,6 +512,7 @@ function parseFile(fileUri: URI, content: string, data: Types.DocumentData, diag
     data.constants = results.constants;
     data.semanticTokens = results.semanticTokens;
     data.localVariables = results.localVariables;
+    data.cachedSymbols = null;
 }
 
 // --- Semantic Tokens Provider ---
@@ -512,7 +554,7 @@ connection.onReferences((params: ReferenceParams): Location[] => {
     const data = documentsData.get(document.uri);
     if (!data) return [];
 
-    return Parser.doReferences(document.getText(), params.position, document.uri, data, dependenciesData);
+    return Parser.doReferences(document.getText(), params.position, document.uri, data, dependenciesData, readIncludeContent);
 });
 
 // --- Rename Provider ---
@@ -535,6 +577,29 @@ connection.onRenameRequest((params: RenameParams): WorkspaceEdit | null => {
             [document.uri]: edits
         }
     };
+});
+
+// --- Document Highlight Provider ---
+connection.onDocumentHighlight((params: DocumentHighlightParams): DocumentHighlight[] | null => {
+    const document = documentsManager.get(params.textDocument.uri);
+    if (!document) return null;
+    const data = documentsData.get(document.uri);
+    if (!data) return null;
+
+    return Parser.doDocumentHighlight(document.getText(), params.position, data, dependenciesData);
+});
+
+// --- Folding Ranges Provider ---
+connection.onFoldingRanges((params: FoldingRangeParams): FoldingRange[] | null => {
+    const document = documentsManager.get(params.textDocument.uri);
+    if (!document) return null;
+
+    return Parser.doFoldingRanges(document.getText());
+});
+
+// --- Workspace Symbols Provider ---
+connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] | null => {
+    return Parser.doWorkspaceSymbols(params.query, documentsData, dependenciesData);
 });
 
 documentsManager.listen(connection);

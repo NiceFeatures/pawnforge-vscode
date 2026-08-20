@@ -56,6 +56,23 @@ export function activate(ctx: VSC.ExtensionContext) {
     const commandCompileLocal = VSC.commands.registerCommand('amxxpawn.compileLocal', Commands.compileLocal.bind(null, outputChannel, diagnosticCollection));
     const commandCreatePlugin = VSC.commands.registerCommand('amxxpawn.createPlugin', Commands.createPlugin.bind(null, ctx, onCompilerDownloaded));
 
+    const statusBarItem = Commands.registerCompileStatusBarItem(ctx);
+    Commands.updateCompileStatusBarItemVisibility(VSC.window.activeTextEditor);
+
+    VSC.window.onDidChangeActiveTextEditor(editor => {
+        Commands.updateCompileStatusBarItemVisibility(editor);
+    });
+
+    VSC.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('amxxpawn')) {
+            Commands.clearClientCompilerCache();
+        }
+    });
+
+    const fileWatcher = VSC.workspace.createFileSystemWatcher('**/*.inc');
+    fileWatcher.onDidCreate(() => Commands.clearClientCompilerCache());
+    fileWatcher.onDidDelete(() => Commands.clearClientCompilerCache());
+
     VSC.workspace.onDidChangeTextDocument(onDidChangeTextDocument);
     
     ctx.subscriptions.push(
@@ -64,7 +81,9 @@ export function activate(ctx: VSC.ExtensionContext) {
         commandCompile,
         commandCompileLocal,
         commandCreatePlugin,
-        outputChannel
+        outputChannel,
+        statusBarItem,
+        fileWatcher
     );
 }
 

@@ -5,6 +5,7 @@
         "configuration.language.reparseInterval.description": "The shortest allowed interval between two syntax re-parses of the same file",
         "configuration.language.webApiLinks.description": "Should #include statements that contain filenames from the AMXX package link to the Web API Reference",
         "configuration.compiler.executablePath.description": "Compiler location",
+        "configuration.compiler.globalIncludePaths.description": "A global array of strings containing include paths for the compiler and language server",
         "configuration.compiler.includePaths.description": "An array of strings containing include paths for the compiler",
         "configuration.compiler.options.description": "An array of additional options that should be passed to the compiler",
         "configuration.compiler.showInfoMessages.description": "Shows additional information like command arguments and exit code when compiling",

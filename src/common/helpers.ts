@@ -1,8 +1,13 @@
 import * as Path from 'path';
-import { URI } from 'vscode-uri'; // Corrigido
-
+import * as FS from 'fs';
+import { URI } from 'vscode-uri';
 
 function substituteVariables(variable: string, workspacePath: string | undefined, filePath: string | undefined): string | undefined {
+    if (variable.startsWith('env:')) {
+        const envName = variable.slice('env:'.length);
+        return process.env[envName];
+    }
+
     switch(variable) {
         case 'workspaceRoot': return workspacePath;
         case 'workspaceRootFolderName': return workspacePath !== undefined ? Path.basename(workspacePath) : undefined;
@@ -54,3 +59,72 @@ export function resolvePathVariables(path: string, workspacePath: string | undef
 
     return finalPath;
 }
+
+export function resolvePathPattern(path: string): string[] {
+    if (!path.includes('*')) {
+        return FS.existsSync(path) ? [path] : [];
+    }
+
+    const isAbsolute = Path.isAbsolute(path);
+    const segments = path.split(/[\\/]/).filter((s) => s.length > 0);
+    const initialBase = isAbsolute ? Path.parse(path).root : '.';
+
+    return expand(segments.slice(isAbsolute ? 1 : 0), initialBase).sort();
+}
+
+function expand(segments: string[], base: string): string[] {
+    if (segments.length === 0) {
+        return isDirectory(base) ? [base] : [];
+    }
+
+    const [segment, ...rest] = segments;
+
+    if (segment === '**') {
+        let entries: FS.Dirent[];
+        try {
+            entries = FS.readdirSync(base, { withFileTypes: true });
+        } catch {
+            return [];
+        }
+
+        const results: string[] = [];
+        // Considera a base atual (0 níveis)
+        results.push(...expand(rest, base));
+        // Recursão para cada subdiretório
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            results.push(...expand(segments, Path.join(base, entry.name)));
+        }
+        return results;
+    }
+
+    if (segment === '*') {
+        let entries: FS.Dirent[];
+        try {
+            entries = FS.readdirSync(base, { withFileTypes: true });
+        } catch {
+            return [];
+        }
+
+        const results: string[] = [];
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            results.push(...expand(rest, Path.join(base, entry.name)));
+        }
+        return results;
+    }
+
+    const nextBase = Path.join(base, segment);
+    if (!isDirectory(nextBase)) {
+        return [];
+    }
+    return expand(rest, nextBase);
+}
+
+function isDirectory(p: string): boolean {
+    try {
+        return FS.statSync(p).isDirectory();
+    } catch {
+        return false;
+    }
+}

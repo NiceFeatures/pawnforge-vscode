@@ -42,9 +42,13 @@ Diferente do original, esta versão **Extended** traz otimizações focadas em w
     * **Funções em Tasks:** Navegue diretamente para a função quando o nome dela é passado como texto (ex: `set_task_ex(..., "minha_funcao", ...)`).
 * **🔍 Find All References:** `Shift+F12` em qualquer símbolo para encontrar todas as ocorrências no documento atual e nos includes carregados.
 * **✏️ Rename Symbol:** `F2` para renomear variáveis, funções ou constantes em todo o documento — com proteção contra renomear keywords reservadas do Pawn.
+* **🔦 Document Highlight:** Ao clicar ou posicionar o cursor em uma variável, função ou constante, todas as ocorrências no arquivo acendem com destaque visual.
+* **🗂️ Folding Ranges:** Suporte nativo para recolher e expandir blocos de código (`#if/#else/#endif`, comentários em bloco `/* */`, `enum { }` e corpos de funções `{ }`).
+* **🌐 Workspace Symbols (`Ctrl+T`):** Pressione `Ctrl+T` para buscar instantaneamente qualquer função, stock, constante ou macro em todos os arquivos e includes do projeto.
 * **💡 Informações ao Passar o Mouse (Hover):** Passe o mouse sobre uma função ou variável para ver sua definição completa sem sair do lugar.
 * **⚡ Diagnósticos em Tempo Real:** A extensão avisa se um `#include` não pode ser encontrado, ajudando a corrigir erros antes mesmo de compilar.
 * **🔴 Inline Error Display:** Erros de compilação aparecem diretamente na linha do código como texto inline, além do sublinhado vermelho tradicional.
+* **📊 Status Bar de Compilação:** Indicador visual em tempo real na barra inferior do VS Code com tempo de compilação (`$(check) AMXX: OK (0.04s)`) e atalho de clique para compilar.
 * **📥 Download Automático do Compilador (Zero Configuração):** Não configurou um compilador? A extensão baixa e configura o compilador automaticamente para você.
 * **🛠️ Compilação Integrada:** Compile seus plugins diretamente do VS Code com um único comando ou pelo botão ▶️ na barra do editor.
 
@@ -60,7 +64,7 @@ Você também pode instalar diretamente pela [página do Marketplace](https://ma
 
 ## ⚙️ Configuração (Opcional - Customização)
 
-Por padrão, a extensão **baixa e configura automaticamente o compilador AMXX (Zero Configuração!)**. Porém, se você quiser usar um compilador próprio ou de uma versão específica, você pode informar o caminho para a extensão.
+Por padrão, a extensão **baixa e configura automaticamente o compilador AMXX (Zero Configuração!)**. Porém, se você quiser usar um compilador próprio, pastas de includes adicionais ou variáveis de ambiente, você pode configurar facilmente.
 
 1.  Abra as Configurações do VS Code (`Ctrl + ,`).
 2.  Clique no ícone de "Abrir settings.json" no canto superior direito.
@@ -74,15 +78,24 @@ Por padrão, a extensão **baixa e configura automaticamente o compilador AMXX (
     // (Deixe vazio ou não defina nada para usar o compilador padrão auto-baixado)
     "amxxpawn.compiler.executablePath": "C:\\caminho\\para\\seu\\compiler\\amxxpc.exe",
 
-    // Lista de pastas onde a extensão deve procurar por arquivos .inc.
-    // (Deixe vazio para usar a pasta include do compilador padrão auto-baixado)
+    // Lista global de diretórios de includes compartilhada por todos os projetos (User Settings).
+    // Suporta variáveis de ambiente (${env:VAR}) e busca recursiva com glob (/**).
+    "amxxpawn.compiler.globalIncludePaths": [
+        "${env:AMXX_HOME}\\scripting\\include\\**"
+    ],
+
+    // Lista de pastas de include específicas deste projeto/workspace.
+    // Suporta ${workspaceRoot}, variáveis de ambiente (${env:VAR}) e globs (/**).
     "amxxpawn.compiler.includePaths": [
-        "C:\\caminho\\para\\seu\\compiler\\include"
+        "${workspaceRoot}\\include\\**"
     ],
 
     // Habilita ou desabilita avisos de erro inline no final da linha (falso por padrão).
     // Deixe falso se você usa extensões como Error Lens para evitar mensagens duplicadas.
     "amxxpawn.compiler.inlineErrors": false,
+
+    // Intervalo de debounce em milissegundos para reprocessamento de símbolos ao digitar (padrão: 300ms).
+    "amxxpawn.language.reparseInterval": 300,
 
     // --- CONFIGURAÇÃO RECOMENDADA ---
     // Para uma experiência de autocomplete mais limpa e inteligente,
@@ -91,14 +104,21 @@ Por padrão, a extensão **baixa e configura automaticamente o compilador AMXX (
 }
 ```
 
-**IMPORTANTE para usuários Windows:** Em arquivos JSON, você deve usar barras invertidas duplas (`\\`) ou barras normais (`/`) nos caminhos.
+**Variáveis e Padrões Suportados nos Caminhos:**
+- `${workspaceRoot}` — Raiz do workspace/projeto aberto.
+- `${fileDirname}` — Pasta do arquivo atualmente aberto.
+- `${env:NOME_DA_VARIAVEL}` — Qualquer variável de ambiente do sistema (ex: `${env:HLDS_DIR}`, `${env:USERPROFILE}`).
+- `**` / `*` — Expansão recursiva. Ex: `include/**` inclui automaticamente todas as subpastas.
 
-**Exemplo Prático:**
+**Exemplo Prático com Variáveis de Ambiente e Glob:**
 ```json
 {
-    "amxxpawn.compiler.executablePath": "C:/AMXX/compiler/amxxpc.exe",
+    "amxxpawn.compiler.executablePath": "${env:HLDS_DIR}/cstrike/addons/amxmodx/scripting/amxxpc.exe",
+    "amxxpawn.compiler.globalIncludePaths": [
+        "${env:HLDS_DIR}/cstrike/addons/amxmodx/scripting/include/**"
+    ],
     "amxxpawn.compiler.includePaths": [
-        "C:/AMXX/compiler/include"
+        "${workspaceRoot}/scripting/include/**"
     ]
 }
 ```
