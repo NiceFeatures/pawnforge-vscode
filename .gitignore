@@ -6,7 +6,6 @@ context.md
 .agent
 .agents
 dist
-test_*
 graphify-out
 *.sma
 *.amxx
