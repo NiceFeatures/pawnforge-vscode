@@ -11,9 +11,10 @@
         "color": "#251654"
     },
     "author": {
-        "name": "KliPPy",
-        "url": "https://forums.alliedmods.net/member.php?u=228599"
+        "name": "iceeedR",
+        "url": "https://github.com/NiceFeatures"
     },
+    "homepage": "https://github.com/NiceFeatures/amxxpawn-language#readme",
     "repository": {
         "type": "git",
         "url": "https://github.com/NiceFeatures/amxxpawn-language"
