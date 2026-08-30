@@ -66,10 +66,12 @@ export function resolvePathPattern(path: string): string[] {
     }
 
     const isAbsolute = Path.isAbsolute(path);
-    const segments = path.split(/[\\/]/).filter((s) => s.length > 0);
-    const initialBase = isAbsolute ? Path.parse(path).root : '.';
+    const root = isAbsolute ? Path.parse(path).root : '';
+    const relativePart = isAbsolute ? path.slice(root.length) : path;
+    const segments = relativePart.split(/[\\/]/).filter((s) => s.length > 0);
+    const initialBase = isAbsolute ? root : '.';
 
-    return expand(segments.slice(isAbsolute ? 1 : 0), initialBase).sort();
+    return expand(segments, initialBase).sort();
 }
 
 function expand(segments: string[], base: string): string[] {
