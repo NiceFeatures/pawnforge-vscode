@@ -845,21 +845,26 @@ export function doCompletions(
             const isLocal = includePathMatch[1] === '"';
             const addedSet = new Set<string>();
 
-            const addFilesFromDir = (dir: string) => {
-                if (!FS.existsSync(dir)) return;
+            const addFilesFromDir = (dir: string, prefix = '', maxDepth = 5) => {
+                if (maxDepth < 0 || !FS.existsSync(dir)) return;
                 try {
-                    const files = FS.readdirSync(dir);
-                    for (const file of files) {
-                        if (file.toLowerCase().endsWith('.inc')) {
-                            const name = file.substring(0, file.length - 4);
-                            if (!addedSet.has(name)) {
-                                addedSet.add(name);
+                    const entries = FS.readdirSync(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+                        if (entry.isFile() && entry.name.toLowerCase().endsWith('.inc')) {
+                            const name = entry.name.substring(0, entry.name.length - 4);
+                            const label = prefix ? `${prefix}/${name}` : name;
+                            if (!addedSet.has(label)) {
+                                addedSet.add(label);
                                 includeItems.push({
-                                    label: name,
+                                    label: label,
                                     kind: VSCLS.CompletionItemKind.File,
-                                    detail: `${name}.inc`
+                                    detail: `${entry.name}`
                                 });
                             }
+                        } else if (entry.isDirectory()) {
+                            const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+                            addFilesFromDir(Path.join(dir, entry.name), nextPrefix, maxDepth - 1);
                         }
                     }
                 } catch (e) {

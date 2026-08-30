@@ -43,7 +43,7 @@ import * as Parser from './parser';
 import * as Types from './types';
 import * as DM from './dependency-manager';
 import * as Helpers from './helpers';
-import { resolvePathPattern, resolvePathVariables } from '../common/helpers';
+import { resolvePathPattern, resolvePathVariables, resolveIncludeDirectories } from '../common/helpers';
 
 const connection = createConnection(ProposedFeatures.all);
 const documentsManager = new TextDocuments(TextDocument);
@@ -317,8 +317,7 @@ function getResolvedIncludeDirs(documentPath?: string): string[] {
     if (cached !== undefined) return cached;
 
     const rawPaths = getRawIncludePaths();
-    const resolvedIncludePaths = rawPaths.map(p => resolvePathVariables(p, workspacePath, documentPath));
-    const finalDirs = [...new Set(resolvedIncludePaths.flatMap(resolvePathPattern))];
+    const finalDirs = resolveIncludeDirectories(rawPaths, workspacePath, documentPath);
     cachedResolvedIncludeDirs.set(cacheKey, finalDirs);
     return finalDirs;
 }

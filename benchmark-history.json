@@ -40,5 +40,19 @@
       "symbolsLookupUncachedMs": 1250.97,
       "heapUsedMB": 35.22
     }
+  },
+  {
+    "version": "1.5.7",
+    "date": "2026-08-30",
+    "timestamp": 1788109946345,
+    "metrics": {
+      "positionToIndexMs": 271.83,
+      "positionToIndexLegacyMs": 1902.44,
+      "fullReparseAvgMs": 5.44,
+      "semanticTokensAvgMs": 11.05,
+      "symbolsLookupCachedMs": 2.68,
+      "symbolsLookupUncachedMs": 1454.19,
+      "heapUsedMB": 53.4
+    }
   }
 ]

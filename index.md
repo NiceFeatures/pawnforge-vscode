@@ -34,6 +34,19 @@ This project revives and modernizes the development experience for **AMX Mod X**
 
 It transforms VS Code into a powerful IDE for Pawn, bringing features that were previously exclusive to newer languages.
 
+## ✨ What's New (v1.5.7)
+### Fixed
+- **Correção na Resolução de Diretórios de Include com Subpastas**: Corrigido o erro onde arquivos `.inc` localizados em subpastas de diretórios configurados (ex: `src/Helper/DataLoader.inc` com `#include <Helper/DataLoader>`) não eram encontrados pelo compilador.
+- * **Include Directory Resolution Fix for Subdirectories**: Fixed an issue where `.inc` header files located in subdirectories of configured include paths (e.g. `src/Helper/DataLoader.inc` included via `#include <Helper/DataLoader>`) were not found by the compiler.*
+- **Preservação de Includes Explícitos**: Diretórios de include configurados explicitamente em `amxxpawn.compiler.includePaths` e `globalIncludePaths` são sempre mantidos para compilação.
+- * **Explicit Includes Preservation**: Explicit include directories configured in `amxxpawn.compiler.includePaths` and `globalIncludePaths` are always preserved for compilation.*
+- **Busca Recursiva de Includes (`hasIncludeFiles`)**: Expansões com glob (`**` e `*`) agora realizam busca recursiva de cabeçalhos `.inc`, podando com segurança apenas diretórios sem nenhum arquivo include.
+- * **Recursive Include Detection (`hasIncludeFiles`)**: Glob expansions (`**` & `*`) now recursively verify directories for `.inc` headers, safely pruning only folders without any includes.*
+- **Autocompletion de Includes em Subpastas**: Autocomplete de `#include <...>` agora descobre e sugere arquivos `.inc` aninhados em subpastas (ex: `Helper/DataLoader`).
+- * **Subdirectory Include Autocompletion**: Autocompletion for `#include <...>` now discovers and suggests nested headers (e.g. `Helper/DataLoader`).*
+
+---
+
 ## ✨ What's New (v1.5.6)
 ### Added
 - **Suporte a Variáveis de Ambiente (`${env:...}`)**: Use variáveis de ambiente do sistema operacional (ex: `${env:AMXX_HOME}`, `${env:USERPROFILE}`, `${env:HLDS_DIR}`) nos caminhos de includes e do compilador.

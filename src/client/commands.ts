@@ -86,30 +86,12 @@ export function clearClientCompilerCache() {
     cachedCompilerPath = null;
 }
 
-function containsIncludeFiles(dirPath: string): boolean {
-    try {
-        const entries = FS.readdirSync(dirPath);
-        return entries.some(f => f.toLowerCase().endsWith('.inc'));
-    } catch {
-        return false;
-    }
-}
-
 export function getResolvedIncludeDirsClient(rawIncludePaths: string[], workspaceRoot: string | undefined, inputPath: string): string[] {
     const cacheKey = `${workspaceRoot || ''}::${Path.dirname(inputPath)}::${rawIncludePaths.join(';')}`;
     const cached = clientResolvedIncludeDirsCache.get(cacheKey);
     if (cached) return cached;
 
-    const allDirs = [
-        ...new Set(
-            rawIncludePaths
-                .map((path) => Helpers.resolvePathVariables(path, workspaceRoot, inputPath))
-                .flatMap((path) => Helpers.resolvePathPattern(path))
-        )
-    ];
-
-    // Filter out directories that don't contain any .inc files to avoid passing dead folders to amxxpc
-    const validIncludeDirs = allDirs.filter(dir => containsIncludeFiles(dir));
+    const validIncludeDirs = Helpers.resolveIncludeDirectories(rawIncludePaths, workspaceRoot, inputPath);
     clientResolvedIncludeDirsCache.set(cacheKey, validIncludeDirs);
     return validIncludeDirs;
 }

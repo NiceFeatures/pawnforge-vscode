@@ -7,6 +7,17 @@ layout: default
   <a href="/amxxpawn-language/CHANGELOG.html">Histórico de Mudanças</a>
 </p>
 
+## [Version 1.5.7] - 2026-08-30
+### Fixed
+- **Correção na Resolução de Diretórios de Include com Subpastas**: Corrigido um bug introduzido na v1.5.6 em que a compilação falhava quando arquivos `.inc` estavam em subpastas de diretórios configurados (como `src/Helper/DataLoader.inc` referenciado por `#include <Helper/DataLoader>`).
+- * **Include Directory Resolution Fix for Subdirectories**: Fixed an issue introduced in v1.5.6 where compilation failed when header `.inc` files were located in subdirectories of configured include paths (such as `src/Helper/DataLoader.inc` referenced by `#include <Helper/DataLoader>`).*
+- **Preservação de Caminhos de Include Explícitos**: Caminhos configurados explicitamente em `amxxpawn.compiler.includePaths` e `globalIncludePaths` agora são preservados integralmente para o compilador sem falsos positivos de filtragem.
+- * **Explicit Include Paths Preservation**: Explicitly configured paths in `amxxpawn.compiler.includePaths` and `globalIncludePaths` are now unconditionally preserved for `amxxpc` without false-positive pruning.*
+- **Detecção Recursiva de Includes (`hasIncludeFiles`)**: A expansão de glob/wildcards (`**` e `*`) agora realiza busca recursiva de arquivos `.inc` na árvore de diretórios, mantendo pastas-mãe necessárias e podando com segurança diretórios sem arquivos `.inc` (ignorando `.git`, `node_modules` e pastas ocultas).
+- * **Recursive Include Detection (`hasIncludeFiles`)**: Wildcard/glob expansion (`**` & `*`) now recursively checks directory trees for `.inc` files, retaining required include roots while cleanly pruning directories without any headers (safely skipping `.git`, `node_modules`, and hidden folders).*
+- **Autocompletion de Includes em Subpastas**: O Language Server agora descobre arquivos `.inc` em subdiretórios recursivamente e os sugere na lista de autocompletion de diretivas `#include <...>` (ex: `Helper/DataLoader`).
+- * **Subdirectory Include Autocompletion**: The Language Server now recursively scans subdirectories to suggest nested include headers in `#include <...>` autocompletion (e.g. `Helper/DataLoader`).*
+
 ## [Version 1.5.6] - 2026-08-20
 ### Added
 - **Suporte a Variáveis de Ambiente em Caminhos (`${env:...}`)**: Agora é possível utilizar variáveis de ambiente do sistema (como `${env:AMXX_HOME}`, `${env:USERPROFILE}`, `${env:HLDS_DIR}`) em todos os caminhos configurados (`includePaths`, `globalIncludePaths`, `executablePath`, `outputPath`).

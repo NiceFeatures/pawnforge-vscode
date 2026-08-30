@@ -93,6 +93,7 @@ function expand(segments: string[], base: string): string[] {
         // Recursão para cada subdiretório
         for (const entry of entries) {
             if (!entry.isDirectory()) continue;
+            if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
             results.push(...expand(segments, Path.join(base, entry.name)));
         }
         return results;
@@ -109,6 +110,7 @@ function expand(segments: string[], base: string): string[] {
         const results: string[] = [];
         for (const entry of entries) {
             if (!entry.isDirectory()) continue;
+            if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
             results.push(...expand(rest, Path.join(base, entry.name)));
         }
         return results;
@@ -127,4 +129,60 @@ function isDirectory(p: string): boolean {
     } catch {
         return false;
     }
+}
+
+export function hasIncludeFiles(dirPath: string, maxDepth: number = 10): boolean {
+    if (maxDepth < 0) return false;
+    try {
+        const entries = FS.readdirSync(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+            if (entry.isFile() && entry.name.toLowerCase().endsWith('.inc')) {
+                return true;
+            }
+            if (entry.isDirectory()) {
+                if (hasIncludeFiles(Path.join(dirPath, entry.name), maxDepth - 1)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+export function resolveIncludeDirectories(
+    rawIncludePaths: string[],
+    workspacePath: string | undefined,
+    filePath: string | undefined
+): string[] {
+    const resultDirs: string[] = [];
+
+    for (const rawPath of rawIncludePaths) {
+        if (!rawPath || typeof rawPath !== 'string') continue;
+        const resolvedPath = resolvePathVariables(rawPath, workspacePath, filePath);
+        if (!resolvedPath) continue;
+
+        if (!rawPath.includes('*')) {
+            // Explicit path: keep if it exists and is a directory
+            if (FS.existsSync(resolvedPath)) {
+                try {
+                    if (FS.statSync(resolvedPath).isDirectory()) {
+                        resultDirs.push(Path.normalize(resolvedPath));
+                    }
+                } catch { /* ignore */ }
+            }
+        } else {
+            // Wildcard pattern: expand and filter directories containing .inc files (directly or in subdirectories)
+            const expandedDirs = resolvePathPattern(resolvedPath);
+            for (const dir of expandedDirs) {
+                if (hasIncludeFiles(dir)) {
+                    resultDirs.push(Path.normalize(dir));
+                }
+            }
+        }
+    }
+
+    return [...new Set(resultDirs)];
 }
