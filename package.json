@@ -1,5 +1,5 @@
 {
-    "name": "amxx-pawn-language-editor",
+    "name": "pawnforge",
     "displayName": "%extension.displayName%",
     "description": "%extension.description%",
     "version": "1.5.7",
@@ -8,19 +8,19 @@
     "icon": "images/extension-logo.png",
     "galleryBanner": {
         "theme": "dark",
-        "color": "#251654"
+        "color": "#111814"
     },
     "author": {
         "name": "iceeedR",
         "url": "https://github.com/NiceFeatures"
     },
-    "homepage": "https://github.com/NiceFeatures/amxxpawn-language#readme",
+    "homepage": "https://github.com/NiceFeatures/pawnforge-vscode#readme",
     "repository": {
         "type": "git",
-        "url": "https://github.com/NiceFeatures/amxxpawn-language"
+        "url": "https://github.com/NiceFeatures/pawnforge-vscode"
     },
     "bugs": {
-        "url": "https://github.com/NiceFeatures/amxxpawn-language/issues"
+        "url": "https://github.com/NiceFeatures/pawnforge-vscode/issues"
     },
     "keywords": [
         "amxx",

@@ -2,25 +2,25 @@
 ## layout: default
 
 <div align="center">
-  <img src="images/extension-logo.png" alt="AMXXPawn Language Extended Logo" width="150" />
+  <img src="images/extension-logo.png" alt="PawnForge Logo" width="150" />
 </div>
 
-<h1 align="center" style="border-bottom: none; margin-bottom: 0;">AMXXPawn Language - Extended</h1>
+<h1 align="center" style="border-bottom: none; margin-bottom: 0;">PawnForge: AMX Mod X Studio</h1>
 
 <p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=iceeedR.amxx-pawn-language-editor">
-    <img alt="Visual Studio Marketplace Version" src="https://img.shields.io/visual-studio-marketplace/v/iceeedR.amxx-pawn-language-editor?style=for-the-badge&color=2ea043">
+  <a href="https://marketplace.visualstudio.com/items?itemName=iceeedR.pawnforge">
+    <img alt="Visual Studio Marketplace Version" src="https://img.shields.io/visual-studio-marketplace/v/iceeedR.pawnforge?style=for-the-badge&color=2ea043">
   </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=iceeedR.amxx-pawn-language-editor">
-    <img alt="Visual Studio Marketplace Installs" src="https://img.shields.io/visual-studio-marketplace/i/iceeedR.amxx-pawn-language-editor?style=for-the-badge&color=blue">
+  <a href="https://marketplace.visualstudio.com/items?itemName=iceeedR.pawnforge">
+    <img alt="Visual Studio Marketplace Installs" src="https://img.shields.io/visual-studio-marketplace/i/iceeedR.pawnforge?style=for-the-badge&color=22c55e">
   </a>
-  <a href="https://open-vsx.org/extension/iceeedR/amxx-pawn-language-editor">
-    <img alt="Open VSX Installs" src="https://img.shields.io/open-vsx/dt/iceeedR/amxx-pawn-language-editor?style=for-the-badge&color=blue">
+  <a href="https://open-vsx.org/extension/iceeedR/pawnforge">
+    <img alt="Open VSX Installs" src="https://img.shields.io/open-vsx/dt/iceeedR/pawnforge?style=for-the-badge&color=22c55e">
   </a>
 </p>
 
-<div style="background-color: rgba(255, 165, 0, 0.1); border-left: 4px solid #ffa500; padding: 15px; margin: 20px 0; border-radius: 4px;">
-  <strong style="color: #ff8c00;">⚠️ DISCLAIMER:</strong> This extension ("AMXXPawn Language - Extended") is a <strong>fork</strong> of the original <a href="https://marketplace.visualstudio.com/items?itemName=KliPPy.amxxpawn-language" style="color: #ff8c00;">AMXXPawn Language</a> extension by KliPPy. It is not affiliated with the original author. This fork includes specific enhancements for local workflows, improved compilation tasks, and targeted syntax additions.
+<div style="background-color: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 4px;">
+  <strong style="color: #22c55e;">🛡️ PawnForge:</strong> Modern, high-performance development suite and compiler toolchain for AMX Mod X scripting in Visual Studio Code.
 </div>
 
 ---
@@ -330,7 +330,7 @@ Unlike the original extension, this **Extended** version provides tailored optim
 4. Click **Install**.
 5. Reload VS Code and enjoy!
 
-You can also install it directly from the [Marketplace page](https://marketplace.visualstudio.com/items?itemName=iceeedR.amxx-pawn-language-editor).
+You can also install it directly from the [Marketplace page](https://marketplace.visualstudio.com/items?itemName=iceeedR.pawnforge).
 
 ## ⚙️ Configuration (Optional Customization)
 
@@ -416,7 +416,7 @@ This project is a modernization of a legacy codebase, now using TypeScript and t
 **To compile and test locally:**
 
 1. Clone the repository:  
-   `git clone https://github.com/NiceFeatures/amxxpawn-language.git`
+   `git clone https://github.com/NiceFeatures/pawnforge-vscode.git`
 2. Install dependencies:  
    `npm install`
 3. Compile the project (bundle with esbuild):  
