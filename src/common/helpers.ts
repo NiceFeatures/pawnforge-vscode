@@ -14,20 +14,25 @@ function substituteVariables(variable: string, workspacePath: string | undefined
             return workspacePath;
         case 'workspaceRootFolderName':
         case 'workspaceFolderBasename':
-            return workspacePath !== undefined ? Path.basename(workspacePath) : undefined;
+            return workspacePath !== undefined ? Path.win32.basename(workspacePath) : undefined;
         case 'file': return filePath;
-        case 'relativeFile': return (workspacePath !== undefined && filePath !== undefined) ? Path.relative(workspacePath, filePath) : undefined;
-        case 'fileBasename': return filePath !== undefined ? Path.basename(filePath) : undefined;
-        case 'fileBasenameNoExtension':
-            if(filePath === undefined) return undefined;
-
-            const extIndex = filePath.lastIndexOf('.');
-            if(extIndex > 0) {
-                return Path.basename(filePath.substring(0, extIndex));
+        case 'relativeFile':
+            if (workspacePath === undefined || filePath === undefined) return undefined;
+            return workspacePath.includes('\\') || filePath.includes('\\')
+                ? Path.win32.relative(workspacePath, filePath)
+                : Path.relative(workspacePath, filePath);
+        case 'fileBasename': return filePath !== undefined ? Path.win32.basename(filePath) : undefined;
+        case 'fileBasenameNoExtension': {
+            if (filePath === undefined) return undefined;
+            const base = Path.win32.basename(filePath);
+            const extIndex = base.lastIndexOf('.');
+            if (extIndex > 0) {
+                return base.substring(0, extIndex);
             }
-            return Path.basename(filePath);
-        case 'fileDirname': return filePath !== undefined ? Path.dirname(filePath) : undefined;
-        case 'fileExtname': return filePath !== undefined ? Path.extname(filePath) : undefined;
+            return base;
+        }
+        case 'fileDirname': return filePath !== undefined ? (filePath.includes('\\') ? Path.win32.dirname(filePath) : Path.dirname(filePath)) : undefined;
+        case 'fileExtname': return filePath !== undefined ? (filePath.includes('\\') ? Path.win32.extname(filePath) : Path.extname(filePath)) : undefined;
         default: return undefined;
     }
 }

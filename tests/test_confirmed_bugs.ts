@@ -115,6 +115,9 @@ assert.strictEqual(resFolder, 'C:\\MyProject/include');
 const resBasename = helpers.resolvePathVariables('${workspaceFolderBasename}/include', 'C:\\MyProject', undefined);
 assert.strictEqual(resBasename, 'MyProject/include');
 
+const resPosixBasename = helpers.resolvePathVariables('${workspaceFolderBasename}/include', '/home/user/MyProject', undefined);
+assert.strictEqual(resPosixBasename, 'MyProject/include');
+
 // Garante que o legado workspaceRoot continua funcionando
 const resLegacy = helpers.resolvePathVariables('${workspaceRoot}/include', 'C:\\MyProject', undefined);
 assert.strictEqual(resLegacy, 'C:\\MyProject/include');
