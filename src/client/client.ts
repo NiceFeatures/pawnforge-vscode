@@ -88,6 +88,9 @@ export function activate(ctx: VSC.ExtensionContext) {
 }
 
 function onDidChangeTextDocument(ev: VSC.TextDocumentChangeEvent) {
+    if (ev.document.languageId !== 'amxxpawn') {
+        return;
+    }
     diagnosticCollection.delete(ev.document.uri);
     VSC.window.visibleTextEditors.forEach(e => {
         if (e.document.uri.fsPath === ev.document.uri.fsPath) {

@@ -60,6 +60,7 @@ let cachedAutoIncludePath: string | null = null;
 // --- Fix #2: Cache de conteúdo de includes e diretórios resolvidos ---
 const includeContentCache: Map<string, string> = new Map();
 const cachedResolvedIncludeDirs: Map<string, string[]> = new Map();
+const resolvedIncludePathCache: Map<string, string | undefined> = new Map();
 
 // --- Fix #3: Debounce timers por documento ---
 const reparseTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -116,6 +117,7 @@ connection.onDidChangeConfiguration(async () => {
     // Limpa cache de includes e diretórios quando configuração muda
     includeContentCache.clear();
     cachedResolvedIncludeDirs.clear();
+    resolvedIncludePathCache.clear();
     documentsData.forEach(d => { d.cachedSymbols = null; });
     dependenciesData.forEach(d => { d.cachedSymbols = null; });
     documentsManager.all().forEach((doc) => scheduleReparse(doc));
@@ -125,6 +127,7 @@ connection.onNotification('amxxpawn/reparseAll', () => {
     cachedAutoIncludePath = null;
     includeContentCache.clear();
     cachedResolvedIncludeDirs.clear();
+    resolvedIncludePathCache.clear();
     documentsData.forEach(d => { d.cachedSymbols = null; });
     dependenciesData.forEach(d => { d.cachedSymbols = null; });
     documentsManager.all().forEach((doc) => scheduleReparse(doc));
@@ -135,6 +138,7 @@ connection.onNotification('amxxpawn/reparseAll', () => {
 connection.onDidChangeWatchedFiles((params) => {
     let needsReparse = false;
     cachedResolvedIncludeDirs.clear();
+    resolvedIncludePathCache.clear();
 
     for (const change of params.changes) {
         const changedUri = change.uri;
@@ -288,7 +292,8 @@ connection.onSignatureHelp((params: TextDocumentPositionParams): SignatureHelp |
     const data = documentsData.get(document.uri);
     if (!data) return null;
 
-    return Parser.doSignatures(document.getText(), params.position, Helpers.getSymbols(data, dependenciesData).callables);
+    const symbols = Helpers.getSymbols(data, dependenciesData);
+    return Parser.doSignatures(document.getText(), params.position, symbols.callables, symbols.callablesMap);
 });
 
 connection.onDocumentSymbol((params): SymbolInformation[] | null => {
@@ -372,6 +377,11 @@ documentsManager.onDidChangeContent((change) => {
 });
 
 function resolveIncludePath(filename: string, documentPath: string, localTo: string | undefined): string | undefined {
+    const cacheKey = `${filename}|${documentPath}|${localTo || ''}`;
+    if (resolvedIncludePathCache.has(cacheKey)) {
+        return resolvedIncludePathCache.get(cacheKey);
+    }
+
     const finalIncludePaths = [...getResolvedIncludeDirs(documentPath)];
 
     if (localTo !== undefined) {
@@ -407,20 +417,21 @@ function resolveIncludePath(filename: string, documentPath: string, localTo: str
 
     for (const includePath of finalIncludePaths) {
         if (!includePath) continue;
-        try {
-            const fullPath = Path.join(includePath, filename);
-            FS.accessSync(fullPath, FS.constants.R_OK);
-            return URI.file(fullPath).toString();
-        } catch (err) {
-            try {
-                const fullPathWithExt = Path.join(includePath, filename + '.inc');
-                FS.accessSync(fullPathWithExt, FS.constants.R_OK);
-                return URI.file(fullPathWithExt).toString();
-            } catch (errInc) {
-                continue;
-            }
+        const fullPath = Path.join(includePath, filename);
+        if (FS.existsSync(fullPath)) {
+            const resolvedUri = URI.file(fullPath).toString();
+            resolvedIncludePathCache.set(cacheKey, resolvedUri);
+            return resolvedUri;
+        }
+        const fullPathWithExt = Path.join(includePath, filename + '.inc');
+        if (FS.existsSync(fullPathWithExt)) {
+            const resolvedUri = URI.file(fullPathWithExt).toString();
+            resolvedIncludePathCache.set(cacheKey, resolvedUri);
+            return resolvedUri;
         }
     }
+
+    resolvedIncludePathCache.set(cacheKey, undefined);
     return undefined;
 }
 
@@ -474,10 +485,12 @@ function parseFile(fileUri: URI, content: string, data: Types.DocumentData, diag
             let dependency = dependencyManager.getDependency(resolvedUri);
             if (dependency === undefined) {
                 dependency = dependencyManager.addReference(resolvedUri);
-            } else if (!data.dependencies.includes(dependency)) {
+            } else if (!data.dependencies.includes(dependency) && !dependencies.includes(dependency)) {
                 dependencyManager.addReference(dependency.uri);
             }
-            dependencies.push(dependency);
+            if (!dependencies.includes(dependency)) {
+                dependencies.push(dependency);
+            }
 
             let depData = dependenciesData.get(dependency);
             if (depData === undefined) {
@@ -512,6 +525,7 @@ function parseFile(fileUri: URI, content: string, data: Types.DocumentData, diag
     data.semanticTokens = results.semanticTokens;
     data.localVariables = results.localVariables;
     data.cachedSymbols = null;
+    documentsData.forEach(d => { d.cachedSymbols = null; });
 }
 
 // --- Semantic Tokens Provider ---

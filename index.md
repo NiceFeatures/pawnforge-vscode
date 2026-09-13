@@ -34,6 +34,41 @@ This project revives and modernizes the development experience for **AMX Mod X**
 
 It transforms VS Code into a powerful IDE for Pawn, bringing features that were previously exclusive to newer languages.
 
+## ✨ What's New (v1.5.8)
+### Fixed
+- **Detecção e Diagnósticos de Erros Fatais do Compilador (`fatal error`)**: O compilador agora reporta erros fatais (`fatal error 100`) diretamente na aba de Problemas e marcadores inline no editor.
+- * **Compiler Fatal Error Diagnostics (`fatal error`)**: Fatal errors (`fatal error 100`) are now captured and displayed in the Problems panel and as inline error decorations.*
+- **Invalidação Reativa do Cache de Símbolos (`cachedSymbols`)**: Modificações em includes `.inc` abertos no editor são sincronizadas em tempo real com arquivos dependentes `.sma`.
+- * **Reactive Symbol Cache Invalidation (`cachedSymbols`)**: Editing `.inc` headers in the editor now updates IntelliSense in dependent `.sma` files in real time.*
+- **Prevenção de Falhas no Gerenciador de Dependências**: Remoção de dependências agora é tolerante a falhas, eliminando riscos de exceções não tratadas e crash do LSP.
+- * **Dependency Manager Fault Tolerance**: Dependency removals are now fail-safe, eliminating uncaught exceptions and preventing Language Server crashes.*
+- **Filtro de Linguagem em Eventos do Extension Host**: Digitação em arquivos não-Pawn (Markdown, JSON, TypeScript) não dispara mais limpezas desnecessárias de decorações do PawnForge.
+- * **Extension Host Language Event Filtering**: Typing in non-Pawn files no longer triggers unnecessary PawnForge decoration updates.*
+- **Permissão de Execução Automática no Linux (`chmod +x`)**: Compilador baixado automaticamente no Linux agora recebe permissão de execução imediata.
+- * **Automatic Linux Execution Permissions (`chmod +x`)**: Auto-downloaded compiler binaries on Linux are automatically granted execution permissions.*
+- **Prevenção de ReDoS no Parser**: Expressões regulares de mascaramento de strings foram convertidas para padrões estritamente lineares sem backtracking.
+- * **ReDoS Parser Protection**: String-masking regular expressions were rewritten into linear patterns without exponential backtracking.*
+- **Suporte às Variáveis Padrão `${workspaceFolder}`**: Caminhos de include e de compilador agora suportam a variável `${workspaceFolder}` e `${workspaceFolderBasename}`.
+- * **Support for `${workspaceFolder}` Variables**: Configured include and compiler paths now support `${workspaceFolder}` and `${workspaceFolderBasename}`.*
+- **Isolamento de Variáveis em Loops `for`**: Declarações locais em loops `for` agora exibem rótulos limpos no hover sem a sintaxe do loop embutida.
+- * **Clean Local Variable Labels in `for` Loops**: Local variable hover in `for` loops now displays clean labels without trailing loop statements.*
+
+### Performance & Reliability
+- **Resolução de Includes com Checagem Não-Lançadora e Cache ($O(1)$)**: Substituído o uso de `FS.accessSync` com try/catch por `FS.existsSync` e cache em memória, eliminando centenas de exceções e leituras de disco repetidas no reparse.
+- * **Non-Throwing Include Path Resolution with $O(1)$ Cache**: Replaced exception-throwing checks with `FS.existsSync` and added in-memory cache, eliminating caught exceptions and redundant filesystem queries.*
+- **Indexação de Símbolos por Mapas ($O(1)$) para Hover, Definition e Assinaturas**: Consultas do editor (hover, definição e assinaturas) agora consultam tabelas hash indexadas instantaneamente, sem varredura linear em arrays de símbolos.
+- * **$O(1)$ Map Lookups for Hover, Definition, and Signatures**: Editor features now use instant lowercase hash map lookups instead of linear array scans.*
+- **Deduplicação de Variáveis e Constantes em `getSymbols`**: Elimina variáveis globais e constantes duplicadas de múltiplos includes, reduzindo o consumo de memória heap do servidor em ~26%.
+- * **Variable and Constant Deduplication in `getSymbols`**: Eliminates duplicate symbols across headers, cutting Language Server heap memory usage by ~26%.*
+- **Memoização em `hasIncludeFiles`**: Varreduras de pastas na expansão recursiva de curingas (`**`) reutilizam resultados memorizados, reduzindo a complexidade de disco de $O(N^2)$ para $O(N)$.
+- * **`hasIncludeFiles` Memoization**: Recursive folder scanning now reuses memoized results, cutting disk I/O complexity from $O(N^2)$ to $O(N)$.*
+- **Cache com TTL em Autocomplete de Includes**: Sugestões de `#include <...>` são mantidas em memória com TTL durante a digitação ativa, evitando travamentos por leituras síncronas de disco.
+- * **Include Completion Cache**: Autocomplete suggestions for `#include <...>` are cached during typing, preventing disk blocking.*
+- **Segurança e Concorrência na Compilação (Watchdog & Cancelamento)**: Iniciar uma nova compilação cancela a anterior para proteger o arquivo `.amxx` contra corrupção, além de watchdog de 30s contra travamentos.
+- * **Compiler Concurrency Safety & Watchdog Timeout**: Starting a new compilation safely aborts ongoing runs, protected by a 30-second watchdog against hung processes.*
+
+---
+
 ## ✨ What's New (v1.5.7)
 ### Fixed
 - **Correção na Resolução de Diretórios de Include com Subpastas**: Corrigido o erro onde arquivos `.inc` localizados em subpastas de diretórios configurados (ex: `src/Helper/DataLoader.inc` com `#include <Helper/DataLoader>`) não eram encontrados pelo compilador.

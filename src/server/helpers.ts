@@ -7,6 +7,9 @@ export interface SymbolsResults {
     callables: Types.CallableDescriptor[];
     values: Types.ValueDescriptor[];
     constants: Types.ConstantDescriptor[];
+    callablesMap?: Map<string, Types.CallableDescriptor>;
+    valuesMap?: Map<string, Types.ValueDescriptor>;
+    constantsMap?: Map<string, Types.ConstantDescriptor>;
 }
 
 export function getSymbols(
@@ -21,26 +24,41 @@ export function getSymbols(
     const values: Types.ValueDescriptor[] = [];
     const constants: Types.ConstantDescriptor[] = [];
     
-    const callablesMap = new Map<string, { desc: Types.CallableDescriptor; index: number }>();
+    const callablesInternalMap = new Map<string, { desc: Types.CallableDescriptor; index: number }>();
+    const valuesMap = new Map<string, Types.ValueDescriptor>();
+    const constantsMap = new Map<string, Types.ConstantDescriptor>();
     const visited = new Map<DM.FileDependency, boolean>();
 
     function walk(docData: Types.DocumentData) {
         for (const c of docData.callables) {
             const key = c.identifier.toLowerCase();
-            const existing = callablesMap.get(key);
+            const existing = callablesInternalMap.get(key);
             if (!existing) {
                 const index = callables.push(c) - 1;
-                callablesMap.set(key, { desc: c, index });
+                callablesInternalMap.set(key, { desc: c, index });
             } else {
                 if (c.isForward && !existing.desc.isForward) {
                     callables[existing.index] = c;
-                    callablesMap.set(key, { desc: c, index: existing.index });
+                    callablesInternalMap.set(key, { desc: c, index: existing.index });
                 }
             }
         }
 
-        values.push(...docData.values);
-        constants.push(...docData.constants);
+        for (const v of docData.values) {
+            const key = v.identifier.toLowerCase();
+            if (!valuesMap.has(key)) {
+                values.push(v);
+                valuesMap.set(key, v);
+            }
+        }
+
+        for (const c of docData.constants) {
+            const key = c.identifier.toLowerCase();
+            if (!constantsMap.has(key)) {
+                constants.push(c);
+                constantsMap.set(key, c);
+            }
+        }
 
         for (const dep of docData.dependencies) {
             if (visited.get(dep) === true) continue;
@@ -54,10 +72,18 @@ export function getSymbols(
 
     walk(data);
 
+    const callablesMap = new Map<string, Types.CallableDescriptor>();
+    for (const [key, val] of callablesInternalMap.entries()) {
+        callablesMap.set(key, val.desc);
+    }
+
     const result: SymbolsResults = {
         callables,
         values,
-        constants
+        constants,
+        callablesMap,
+        valuesMap,
+        constantsMap
     };
     data.cachedSymbols = result;
     return result;

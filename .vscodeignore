@@ -21,3 +21,8 @@ context.md
 graphify-out/**
 *.sma
 *.amxx
+AUDITORIA.md
+findings.md
+index.md
+BENCHMARKS.md
+benchmark-history.json

@@ -43,16 +43,30 @@
   },
   {
     "version": "1.5.7",
-    "date": "2026-08-30",
-    "timestamp": 1788109946345,
+    "date": "2026-09-13",
+    "timestamp": 1789310198318,
     "metrics": {
-      "positionToIndexMs": 271.83,
-      "positionToIndexLegacyMs": 1902.44,
-      "fullReparseAvgMs": 5.44,
-      "semanticTokensAvgMs": 11.05,
-      "symbolsLookupCachedMs": 2.68,
-      "symbolsLookupUncachedMs": 1454.19,
-      "heapUsedMB": 53.4
+      "positionToIndexMs": 278.64,
+      "positionToIndexLegacyMs": 1899.62,
+      "fullReparseAvgMs": 4.78,
+      "semanticTokensAvgMs": 10.72,
+      "symbolsLookupCachedMs": 2.24,
+      "symbolsLookupUncachedMs": 1361.15,
+      "heapUsedMB": 47.44
+    }
+  },
+  {
+    "version": "1.5.8",
+    "date": "2026-09-13",
+    "timestamp": 1789310682384,
+    "metrics": {
+      "positionToIndexMs": 273.47,
+      "positionToIndexLegacyMs": 1896,
+      "fullReparseAvgMs": 4.77,
+      "semanticTokensAvgMs": 11.27,
+      "symbolsLookupCachedMs": 2.77,
+      "symbolsLookupUncachedMs": 3405.57,
+      "heapUsedMB": 35.1
     }
   }
 ]

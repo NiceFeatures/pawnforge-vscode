@@ -7,6 +7,39 @@ layout: default
   <a href="/amxxpawn-language/CHANGELOG.html">Histórico de Mudanças</a>
 </p>
 
+## [Version 1.5.8] - 2026-09-13
+### Fixed
+- **Detecção e Diagnósticos de Erros Fatais do Compilador (`fatal error`)**: Corrigido o regex de captura de saída do `amxxpc` para registrar erros fatais (como includes inexistentes ou erros de alocação de memória) na aba de Problemas e com marcadores inline no editor.
+- * **Compiler Fatal Error Diagnostics (`fatal error`)**: Fixed output parsing regex to capture fatal errors (such as missing header files or memory limit errors) and populate the VS Code Problems panel and inline error decorations.*
+- **Invalidação Reativa do Cache de Símbolos (`cachedSymbols`)**: Corrigida a retenção de símbolos desatualizados em arquivos que dependem de includes modificados durante a sessão do editor, garantindo IntelliSense sempre sincronizado.
+- * **Reactive Symbol Cache Invalidation (`cachedSymbols`)**: Fixed stale symbol retention in files depending on headers modified in the editor session, ensuring always up-to-date IntelliSense.*
+- **Prevenção de Falhas no Gerenciador de Dependências**: `FileDependencyManager.removeReference()` agora opera de forma segura e tolerante a falhas caso uma dependência já tenha sido removida, além de impedir registros duplicados de dependências.
+- * **Dependency Manager Fault Tolerance**: `FileDependencyManager.removeReference()` now operates safely without throwing uncaught exceptions when dependencies are untracked, and duplicate dependency references are deduplicated.*
+- **Otimização de Eventos no Extension Host**: O evento `onDidChangeTextDocument` agora filtra estritamente documentos com `languageId === 'amxxpawn'`, evitando processamento desnecessário ao editar outros arquivos no VS Code.
+- * **Extension Host Event Filtering**: `onDidChangeTextDocument` now strictly checks for `amxxpawn` language documents, eliminating unnecessary event loop overhead when editing non-Pawn files.*
+- **Permissão de Execução do Compilador no Linux (`chmod +x`)**: A extração automática do `amxxpc` no Linux agora atribui permissões de execução (0o755) ao binário recém-descompactado.
+- * **Linux Compiler Execution Permissions (`chmod +x`)**: Automatic compiler download on Linux now grants executable permissions (0o755) to the extracted `amxxpc` binary.*
+- **Prevenção de ReDoS no Parser**: Substituídas as expressões regulares com quantificadores aninhados por padrões lineares seguros ao mascarar strings, eliminando riscos de congelamento da extensão.
+- * **ReDoS Vulnerability Fix**: Replaced nested-quantifier regular expressions with linear patterns when stripping strings, preventing event loop blocking.*
+- **Suporte às Variáveis `${workspaceFolder}` e `${workspaceFolderBasename}`**: Agora é possível utilizar a sintaxe oficial padrão do VS Code para caminhos de includes e executáveis.
+- * **Support for `${workspaceFolder}` and `${workspaceFolderBasename}`**: Added support for standard official VS Code path substitution variables.*
+- **Correção de Rótulos de Variáveis em Loops `for`**: Declarações como `for (new i = 0; ...)` agora isolam corretamente a variável local sem incluir o restante do cabeçalho da repetição.
+- * **Clean Local Variable Labels in `for` Loops**: Declarations like `for (new i = 0; ...)` now cleanly isolate the variable label without embedding the rest of the loop statement.*
+
+### Performance & Reliability
+- **Resolução de Includes com Checagem Não-Lançadora e Cache ($O(1)$)**: Substituído o uso de `FS.accessSync` com try/catch por `FS.existsSync` associado a um cache de caminhos resolvidos (`resolvedIncludePathCache`), eliminando centenas de exceções e chamadas I/O repetidas no reparse de includes.
+- * **Non-Throwing Include Path Resolution with $O(1)$ Cache**: Replaced exception-throwing `FS.accessSync` with `FS.existsSync` and added `resolvedIncludePathCache`, eliminating hundreds of caught exceptions and redundant filesystem queries during header parsing.*
+- **Indexação de Símbolos por Mapas ($O(1)$) para Hover, Definition e Assinaturas**: As estruturas de símbolos (`getSymbols`) agora mantêm tabelas hash indexadas em minúsculo (`callablesMap`, `valuesMap`, `constantsMap`), substituindo buscas lineares $O(N)$ em arrays com milhares de entradas por lookups instantâneos $O(1)$.
+- * **$O(1)$ Map Lookups for Hover, Definition, and Signatures**: Symbol aggregation (`getSymbols`) now builds lowercase lookup maps (`callablesMap`, `valuesMap`, `constantsMap`), replacing $O(N)$ linear scans with instant $O(1)$ lookups for editor queries.*
+- **Deduplicação de Variáveis e Constantes em `getSymbols`**: Previne o acúmulo e duplicação de variáveis e constantes compartilhadas entre múltiplos includes, reduzindo o consumo de memória heap do servidor em ~26%.
+- * **Variable and Constant Deduplication in `getSymbols`**: Prevents duplicate global variables and constants across shared headers, reducing Language Server heap memory consumption by ~26%.*
+- **Memoização em `hasIncludeFiles`**: Varreduras de pastas na expansão de curingas (`**`) reutilizam resultados memorizados por pasta, evitando varreduras repetidas em subárvores idênticas ($O(N^2) \to O(N)$).
+- * **`hasIncludeFiles` Memoization**: Directory tree checks during glob wildcard expansion (`**`) now reuse memoized results, eliminating redundant deep filesystem scans ($O(N^2) \to O(N)$).*
+- **Cache com TTL em Autocomplete de Includes**: Sugestões de arquivos ao digitar `#include <...>` são mantidas em cache durante a digitação ativa, prevenindo leituras síncronas bloqueantes de disco a cada caractere.
+- * **Include Completion Cache**: Autocomplete suggestions while typing `#include <...>` are cached in-memory with a TTL, avoiding synchronous filesystem reads on every keystroke.*
+- **Segurança e Concorrência na Compilação (Watchdog & Cancelamento)**: Compilações consecutivas agora abortam o processo anterior em andamento para evitar corridas e corrupção de binários `.amxx`, com um temporizador de segurança de 30 segundos contra travamentos do compilador.
+- * **Compiler Concurrency Safety & Watchdog Timeout**: Successive compilations now abort any ongoing compiler process to prevent binary output corruption, paired with a 30-second watchdog timer to terminate hung compiler instances.*
+
 ## [Version 1.5.7] - 2026-08-30
 ### Fixed
 - **Correção na Resolução de Diretórios de Include com Subpastas**: Corrigido um bug introduzido na v1.5.6 em que a compilação falhava quando arquivos `.inc` estavam em subpastas de diretórios configurados (como `src/Helper/DataLoader.inc` referenciado por `#include <Helper/DataLoader>`).

@@ -57,13 +57,13 @@ export class FileDependencyManager {
     }
 
     public removeReference(uri: string): void {
-        if(!this._dependencies.has(uri)) {
-            throw new Error('Tried to remove a reference from a non-existent dependency.');
+        if (!this._dependencies.has(uri)) {
+            return;
         }
 
         const dependency = this._dependencies.get(uri)!;
         --dependency.count;
-        if(dependency.count === 0) {
+        if (dependency.count <= 0) {
             this._dependencies.delete(uri);
         }
     }

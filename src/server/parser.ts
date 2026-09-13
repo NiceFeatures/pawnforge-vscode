@@ -316,6 +316,12 @@ export function parse(fileUri: URI, content: string, skipStatic: boolean): Types
                     if (isDeclStart && declMatch) {
                         declPart = lineContent.substring(declMatch.index! + declMatch[0].length);
                     }
+                    if (lineContent.includes(';') && /\bfor\s*\(/.test(lineContent)) {
+                        const semiPos = declPart.indexOf(';');
+                        if (semiPos >= 0) {
+                            declPart = declPart.substring(0, semiPos);
+                        }
+                    }
 
                     if (!/^\s*(?:new|static|const|stock|\s)+$/.test(lineContent)) {
                         const segments = splitByCommaRespectingStrings(declPart);
@@ -785,21 +791,42 @@ export function doDefinition(
     else potentialIdentifiers.push('@' + result.identifier);
 
     // 1. Check variables (values) first - high priority
-    const value = symbols.values.find(val => potentialIdentifiers.some(id => id.toLowerCase() === val.identifier.toLowerCase()));
+    let value: Types.ValueDescriptor | undefined;
+    if (symbols.valuesMap) {
+        for (const id of potentialIdentifiers) {
+            value = symbols.valuesMap.get(id.toLowerCase());
+            if (value) break;
+        }
+    }
+    if (!value) {
+        value = symbols.values.find(val => potentialIdentifiers.some(id => id.toLowerCase() === val.identifier.toLowerCase()));
+    }
     if (value) {
         if (data.uri === value.file.toString() && position.line === value.range.start.line) return null;
         return VSCLS.Location.create(value.file.toString(), value.range);
     }
 
     // 2. Check callables
-    const callable = symbols.callables.find(clb => potentialIdentifiers.some(id => id.toLowerCase() === clb.identifier.toLowerCase()));
+    let callable: Types.CallableDescriptor | undefined;
+    if (symbols.callablesMap) {
+        for (const id of potentialIdentifiers) {
+            callable = symbols.callablesMap.get(id.toLowerCase());
+            if (callable) break;
+        }
+    }
+    if (!callable) {
+        callable = symbols.callables.find(clb => potentialIdentifiers.some(id => id.toLowerCase() === clb.identifier.toLowerCase()));
+    }
     if (callable) {
         if (data.uri === callable.file.toString() && position.line === callable.start.line) return null;
         return VSCLS.Location.create(callable.file.toString(), VSCLS.Range.create(callable.start, callable.end));
     }
 
     // 3. Check constants last
-    const constant = symbols.constants.find(c => c.identifier.toLowerCase() === identifierLower);
+    let constant = symbols.constantsMap ? symbols.constantsMap.get(identifierLower) : undefined;
+    if (!constant) {
+        constant = symbols.constants.find(c => c.identifier.toLowerCase() === identifierLower);
+    }
     if (constant) {
         if (data.uri === constant.file.toString() && position.line === constant.range.start.line) return null;
         return VSCLS.Location.create(constant.file.toString(), constant.range);
@@ -813,6 +840,13 @@ function findIdentifierBehindCursor(content: string, cursorIndex: number): strin
     const match = textBeforeCursor.match(/[\w@]+$/);
     return match ? match[0] : '';
 }
+
+interface IncludeCompletionCacheEntry {
+    timestamp: number;
+    items: VSCLS.CompletionItem[];
+}
+const includeCompletionCache = new Map<string, IncludeCompletionCacheEntry>();
+const INCLUDE_COMPLETION_CACHE_TTL = 10000; // 10s TTL
 
 export function doCompletions(
     connection: VSCLS.Connection,
@@ -838,11 +872,17 @@ export function doCompletions(
 
     // --- Feature: Include completion ---
     if (/^\s*#(?:try)?include\s*[<"]/.test(textBeforeCursor)) {
-        const includeItems: VSCLS.CompletionItem[] = [];
         const includePathMatch = textBeforeCursor.match(/#(?:try)?include\s*([<"])([^>"]*)$/);
         
         if (includePathMatch) {
             const isLocal = includePathMatch[1] === '"';
+            const cacheKey = `${includePaths.slice().sort().join(';')}|${isLocal ? data.uri : ''}`;
+            const cached = includeCompletionCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp < INCLUDE_COMPLETION_CACHE_TTL)) {
+                return cached.items;
+            }
+
+            const includeItems: VSCLS.CompletionItem[] = [];
             const addedSet = new Set<string>();
 
             const addFilesFromDir = (dir: string, prefix = '', maxDepth = 5) => {
@@ -901,6 +941,11 @@ export function doCompletions(
                 }
             }
             
+            includeCompletionCache.set(cacheKey, {
+                timestamp: Date.now(),
+                items: includeItems
+            });
+
             return includeItems;
         }
     }
@@ -1037,9 +1082,18 @@ export function doHover(
     }
 
     // 1. Check variables (values) - high priority
-    let value = symbols.values.find(v => idsToSearch.some(id => id === v.identifier));
+    let value: Types.ValueDescriptor | undefined;
+    if (symbols.valuesMap) {
+        for (const id of idsToSearch) {
+            value = symbols.valuesMap.get(id.toLowerCase());
+            if (value) break;
+        }
+    }
     if (!value) {
-        value = symbols.values.find(v => idsToSearch.some(id => id.toLowerCase() === v.identifier.toLowerCase()));
+        value = symbols.values.find(v => idsToSearch.some(id => id === v.identifier));
+        if (!value) {
+            value = symbols.values.find(v => idsToSearch.some(id => id.toLowerCase() === v.identifier.toLowerCase()));
+        }
     }
     if (value) {
         // Skip hover if on the declaration line in the same file
@@ -1048,25 +1102,48 @@ export function doHover(
     }
 
     // 2. Check callables
-    let callable = symbols.callables.find(c => idsToSearch.some(id => id === c.identifier));
+    let callable: Types.CallableDescriptor | undefined;
+    if (symbols.callablesMap) {
+        for (const id of idsToSearch) {
+            callable = symbols.callablesMap.get(id.toLowerCase());
+            if (callable) break;
+        }
+    }
     if (!callable) {
-        callable = symbols.callables.find(c => idsToSearch.some(id => id.toLowerCase() === c.identifier.toLowerCase()));
+        callable = symbols.callables.find(c => idsToSearch.some(id => id === c.identifier));
+        if (!callable) {
+            callable = symbols.callables.find(c => idsToSearch.some(id => id.toLowerCase() === c.identifier.toLowerCase()));
+        }
     }
     if (callable) {
         return { contents: [{ language: 'amxxpawn', value: callable.label }, { language: 'pawndoc', value: callable.documentation }] };
     }
 
     // 3. Check constants
-    let constant = symbols.constants.find(c => idsToSearch.some(id => id === c.identifier));
+    let constant: Types.ConstantDescriptor | undefined;
+    if (symbols.constantsMap) {
+        for (const id of idsToSearch) {
+            constant = symbols.constantsMap.get(id.toLowerCase());
+            if (constant) break;
+        }
+    }
     if (!constant) {
-        constant = symbols.constants.find(c => idsToSearch.some(id => id.toLowerCase() === c.identifier.toLowerCase()));
+        constant = symbols.constants.find(c => idsToSearch.some(id => id === c.identifier));
+        if (!constant) {
+            constant = symbols.constants.find(c => idsToSearch.some(id => id.toLowerCase() === c.identifier.toLowerCase()));
+        }
     }
     if (constant) return { contents: [{ language: 'amxxpawn', value: constant.label }] };
 
     return null;
 }
 
-export function doSignatures(content: string, position: VSCLS.Position, callables: Types.CallableDescriptor[]): VSCLS.SignatureHelp | null {
+export function doSignatures(
+    content: string,
+    position: VSCLS.Position,
+    callables: Types.CallableDescriptor[],
+    callablesMap?: Map<string, Types.CallableDescriptor>
+): VSCLS.SignatureHelp | null {
     const cursorIndex = positionToIndex(content, position);
 
     // Walk outward from cursor, skipping macro (#define) callables to find
@@ -1080,7 +1157,8 @@ export function doSignatures(content: string, position: VSCLS.Position, callable
 
     while (result.identifier && attempts < MAX_OUTER_SEARCH) {
         attempts++;
-        const found = callables.find(c => c.identifier.toLowerCase() === result.identifier.toLowerCase());
+        const targetId = result.identifier.toLowerCase();
+        const found = callablesMap ? callablesMap.get(targetId) : callables.find(c => c.identifier.toLowerCase() === targetId);
 
         if (!found) {
             // Unknown function — go one level out
@@ -1164,10 +1242,14 @@ export function doReferences(
     let isCallable = result.isCallable;
     if (!isCallable) {
         const symbols = Helpers.getSymbols(data, dependenciesData);
-        for (const callable of symbols.callables) {
-            if (callable.identifier === identifier) {
-                isCallable = true;
-                break;
+        if (symbols.callablesMap) {
+            isCallable = symbols.callablesMap.has(identifier.toLowerCase());
+        } else {
+            for (const callable of symbols.callables) {
+                if (callable.identifier === identifier) {
+                    isCallable = true;
+                    break;
+                }
             }
         }
     }
@@ -1248,8 +1330,8 @@ function findIdentifierOccurrences(content: string, identifier: string, uri: str
         // Only strip strings if we are NOT searching for a callable/callback.
         // Pawn heavily uses string-based callbacks (e.g. set_task(1.0, "@MyTask")).
         if (!searchInStrings) {
-            cleanLine = cleanLine.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, match => ' '.repeat(match.length));
-            cleanLine = cleanLine.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, match => ' '.repeat(match.length));
+            cleanLine = cleanLine.replace(/"(?:[^"\\]|\\.)*"/g, match => ' '.repeat(match.length));
+            cleanLine = cleanLine.replace(/'(?:[^'\\]|\\.)*'/g, match => ' '.repeat(match.length));
         }
 
         let match;
@@ -1327,8 +1409,8 @@ export function getUsageTokens(
         }
 
         let cleanLine = stripComments(line, true);
-        cleanLine = cleanLine.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, match => ' '.repeat(match.length));
-        cleanLine = cleanLine.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, match => ' '.repeat(match.length));
+        cleanLine = cleanLine.replace(/"(?:[^"\\]|\\.)*"/g, match => ' '.repeat(match.length));
+        cleanLine = cleanLine.replace(/'(?:[^'\\]|\\.)*'/g, match => ' '.repeat(match.length));
 
         // --- Feature: Highlight tags (Identifier:) as types ---
         const tagRegex = /([A-Za-z_@][\w@]*):/g;
@@ -1490,10 +1572,14 @@ export function doDocumentHighlight(
     let isCallable = result.isCallable;
     if (!isCallable) {
         const symbols = Helpers.getSymbols(data, dependenciesData);
-        for (const callable of symbols.callables) {
-            if (callable.identifier === identifier) {
-                isCallable = true;
-                break;
+        if (symbols.callablesMap) {
+            isCallable = symbols.callablesMap.has(identifier.toLowerCase());
+        } else {
+            for (const callable of symbols.callables) {
+                if (callable.identifier === identifier) {
+                    isCallable = true;
+                    break;
+                }
             }
         }
     }
@@ -1556,8 +1642,8 @@ export function doFoldingRanges(content: string): VSCLS.FoldingRange[] {
 
         // 3. Braces { ... }
         let clean = stripComments(line, true);
-        clean = clean.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, match => ' '.repeat(match.length));
-        clean = clean.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, match => ' '.repeat(match.length));
+        clean = clean.replace(/"(?:[^"\\]|\\.)*"/g, match => ' '.repeat(match.length));
+        clean = clean.replace(/'(?:[^'\\]|\\.)*'/g, match => ' '.repeat(match.length));
 
         for (let c = 0; c < clean.length; c++) {
             if (clean[c] === '{') {

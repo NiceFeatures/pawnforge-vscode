@@ -9,8 +9,12 @@ function substituteVariables(variable: string, workspacePath: string | undefined
     }
 
     switch(variable) {
-        case 'workspaceRoot': return workspacePath;
-        case 'workspaceRootFolderName': return workspacePath !== undefined ? Path.basename(workspacePath) : undefined;
+        case 'workspaceRoot':
+        case 'workspaceFolder':
+            return workspacePath;
+        case 'workspaceRootFolderName':
+        case 'workspaceFolderBasename':
+            return workspacePath !== undefined ? Path.basename(workspacePath) : undefined;
         case 'file': return filePath;
         case 'relativeFile': return (workspacePath !== undefined && filePath !== undefined) ? Path.relative(workspacePath, filePath) : undefined;
         case 'fileBasename': return filePath !== undefined ? Path.basename(filePath) : undefined;
@@ -133,23 +137,31 @@ function isDirectory(p: string): boolean {
     }
 }
 
-export function hasIncludeFiles(dirPath: string, maxDepth: number = 10): boolean {
+export function hasIncludeFiles(dirPath: string, maxDepth: number = 10, memo?: Map<string, boolean>): boolean {
     if (maxDepth < 0) return false;
+    const normalized = Path.normalize(dirPath);
+    if (memo && memo.has(normalized)) {
+        return memo.get(normalized)!;
+    }
     try {
         const entries = FS.readdirSync(dirPath, { withFileTypes: true });
         for (const entry of entries) {
             if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
             if (entry.isFile() && entry.name.toLowerCase().endsWith('.inc')) {
+                if (memo) memo.set(normalized, true);
                 return true;
             }
             if (entry.isDirectory()) {
-                if (hasIncludeFiles(Path.join(dirPath, entry.name), maxDepth - 1)) {
+                if (hasIncludeFiles(Path.join(dirPath, entry.name), maxDepth - 1, memo)) {
+                    if (memo) memo.set(normalized, true);
                     return true;
                 }
             }
         }
+        if (memo) memo.set(normalized, false);
         return false;
     } catch {
+        if (memo) memo.set(normalized, false);
         return false;
     }
 }
@@ -160,6 +172,7 @@ export function resolveIncludeDirectories(
     filePath: string | undefined
 ): string[] {
     const resultDirs: string[] = [];
+    const memo = new Map<string, boolean>();
 
     for (const rawPath of rawIncludePaths) {
         if (!rawPath || typeof rawPath !== 'string') continue;
@@ -179,7 +192,7 @@ export function resolveIncludeDirectories(
             // Wildcard pattern: expand and filter directories containing .inc files (directly or in subdirectories)
             const expandedDirs = resolvePathPattern(resolvedPath);
             for (const dir of expandedDirs) {
-                if (hasIncludeFiles(dir)) {
+                if (hasIncludeFiles(dir, 10, memo)) {
                     resultDirs.push(Path.normalize(dir));
                 }
             }

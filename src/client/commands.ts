@@ -70,6 +70,10 @@ function extractZip(zipPath: string, destDir: string): Promise<void> {
                                 FS.rmSync(Path.join(destDir, entry), { recursive: true, force: true });
                             }
                         }
+                        const exePath = Path.join(destDir, 'amxxpc');
+                        if (FS.existsSync(exePath)) {
+                            FS.chmodSync(exePath, 0o755);
+                        }
                     } catch { /* ignore cleanup error */ }
                     resolve();
                 }
@@ -244,7 +248,23 @@ export function updateCompileStatusBarItemVisibility(editor: VSC.TextEditor | un
     }
 }
 
+let activeCompilerProcess: CP.ChildProcess | null = null;
+let activeCompilerTimeout: NodeJS.Timeout | null = null;
+const COMPILATION_TIMEOUT_MS = 30000; // 30 seconds watchdog
+
 function doCompile(executablePath: string, inputPath: string, compilerSettings: Settings.CompilerSettings, outputChannel: VSC.OutputChannel, diagnosticCollection: VSC.DiagnosticCollection) {
+    if (activeCompilerProcess) {
+        try {
+            activeCompilerProcess.kill();
+        } catch { /* ignore */ }
+        activeCompilerProcess = null;
+        if (activeCompilerTimeout) {
+            clearTimeout(activeCompilerTimeout);
+            activeCompilerTimeout = null;
+        }
+        outputChannel.appendLine(VSC.l10n.t('⚠️ Previous compilation aborted.'));
+    }
+
     diagnosticCollection.clear();
     VSC.window.visibleTextEditors.forEach(e => e.setDecorations(inlineErrorDecorationType, []));
 
@@ -297,6 +317,22 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
     let compilerStdout = '';
 
     const amxxpcProcess = CP.spawn(executablePath, compilerArgs, spawnOptions);
+    activeCompilerProcess = amxxpcProcess;
+
+    activeCompilerTimeout = setTimeout(() => {
+        if (activeCompilerProcess === amxxpcProcess) {
+            outputChannel.appendLine(VSC.l10n.t('❌ Compilation timed out after 30 seconds and was aborted.'));
+            try {
+                amxxpcProcess.kill();
+            } catch { /* ignore */ }
+            activeCompilerProcess = null;
+            if (compileStatusBarItem) {
+                compileStatusBarItem.text = '$(error) AMXX: Timeout';
+                compileStatusBarItem.backgroundColor = new VSC.ThemeColor('statusBarItem.errorBackground');
+                compileStatusBarItem.show();
+            }
+        }
+    }, COMPILATION_TIMEOUT_MS);
 
     if (amxxpcProcess.stdout) {
         amxxpcProcess.stdout.on('data', (data) => {
@@ -315,11 +351,19 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
     });
 
     amxxpcProcess.on('close', (exitCode) => {
+        if (activeCompilerTimeout) {
+            clearTimeout(activeCompilerTimeout);
+            activeCompilerTimeout = null;
+        }
+        if (activeCompilerProcess === amxxpcProcess) {
+            activeCompilerProcess = null;
+        }
+
         const endTime = process.hrtime(startTime);
         const compilationTime = (endTime[0] + endTime[1] / 1e9).toFixed(3);
 
         const outputData = new Map<string, OutputData>();
-        const captureOutputRegex = /(.+?)\((\d+)(?:\s--\s(\d+))?\)\s:\s(warning|error)\s\d+:\s(.*)/g;
+        const captureOutputRegex = /(.+?)\((\d+)(?:\s--\s(\d+))?\)\s:\s(warning|error|fatal error)\s\d+:\s(.*)/gi;
         let results: RegExpExecArray | null;
 
         let hasErrors = false;
@@ -331,8 +375,8 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
                 data = new OutputData();
                 outputData.set(results[1], data);
             }
-            const type = results[4];
-            if (type === 'error') hasErrors = true;
+            const type = results[4].toLowerCase();
+            if (type === 'error' || type === 'fatal error') hasErrors = true;
             if (type === 'warning') hasWarnings = true;
 
             data.diagnostics.push({
@@ -396,7 +440,8 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
                 outputChannel.appendLine(VSC.l10n.t('  [{0}] Line {1}: {2}', type, String(diag.startLine), diag.message));
 
                 const range = new VSC.Range(diag.startLine - 1, 0, (diag.endLine || diag.startLine) - 1, 10000);
-                const severity = type === 'ERROR' ? VSC.DiagnosticSeverity.Error : VSC.DiagnosticSeverity.Warning;
+                const isError = type === 'ERROR' || type === 'FATAL ERROR';
+                const severity = isError ? VSC.DiagnosticSeverity.Error : VSC.DiagnosticSeverity.Warning;
                 resourceDiagnostics.push(new VSC.Diagnostic(range, diag.message, severity));
 
                 if (compilerSettings.inlineErrors !== false) {
@@ -405,7 +450,7 @@ function doCompile(executablePath: string, inputPath: string, compilerSettings: 
                         renderOptions: {
                             after: {
                                 contentText: `   // ${diag.message}`,
-                                color: new VSC.ThemeColor(type === 'ERROR' ? 'errorForeground' : 'editorWarning.foreground'),
+                                color: new VSC.ThemeColor(isError ? 'errorForeground' : 'editorWarning.foreground'),
                                 fontStyle: 'italic',
                                 margin: '0 0 0 20px',
                             }
