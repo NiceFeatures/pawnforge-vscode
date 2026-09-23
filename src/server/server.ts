@@ -43,7 +43,7 @@ import * as Parser from './parser';
 import * as Types from './types';
 import * as DM from './dependency-manager';
 import * as Helpers from './helpers';
-import { resolvePathPattern, resolvePathVariables, resolveIncludeDirectories } from '../common/helpers';
+import { resolvePathPattern, resolvePathVariables, resolveIncludeDirectories, findWorkspaceFiles } from '../common/helpers';
 
 const connection = createConnection(ProposedFeatures.all);
 const documentsManager = new TextDocuments(TextDocument);
@@ -53,6 +53,7 @@ let dependencyManager: DM.FileDependencyManager = new DM.FileDependencyManager()
 let documentsData: Map<string, Types.DocumentData> = new Map();
 let dependenciesData: Map<DM.FileDependency, Types.DocumentData> = new Map();
 let workspaceRoot: string | null = null;
+let cachedWorkspaceFiles: string[] | null = null;
 let hasConfigurationCapability: boolean = false;
 let globalStoragePath: string | null = null;
 let cachedAutoIncludePath: string | null = null;
@@ -67,7 +68,7 @@ const reparseTimers: Map<string, NodeJS.Timeout> = new Map();
 const DEFAULT_REPARSE_DELAY = 300; // ms
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-    workspaceRoot = params.rootUri;
+    workspaceRoot = params.rootUri || (params.workspaceFolders && params.workspaceFolders.length > 0 ? params.workspaceFolders[0].uri : null);
     hasConfigurationCapability = !!(params.capabilities.workspace && !!params.capabilities.workspace.configuration);
 
     if (params.initializationOptions && params.initializationOptions.globalStoragePath) {
@@ -118,6 +119,7 @@ connection.onDidChangeConfiguration(async () => {
     includeContentCache.clear();
     cachedResolvedIncludeDirs.clear();
     resolvedIncludePathCache.clear();
+    cachedWorkspaceFiles = null;
     documentsData.forEach(d => { d.cachedSymbols = null; });
     dependenciesData.forEach(d => { d.cachedSymbols = null; });
     documentsManager.all().forEach((doc) => scheduleReparse(doc));
@@ -128,6 +130,7 @@ connection.onNotification('amxxpawn/reparseAll', () => {
     includeContentCache.clear();
     cachedResolvedIncludeDirs.clear();
     resolvedIncludePathCache.clear();
+    cachedWorkspaceFiles = null;
     documentsData.forEach(d => { d.cachedSymbols = null; });
     dependenciesData.forEach(d => { d.cachedSymbols = null; });
     documentsManager.all().forEach((doc) => scheduleReparse(doc));
@@ -139,6 +142,7 @@ connection.onDidChangeWatchedFiles((params) => {
     let needsReparse = false;
     cachedResolvedIncludeDirs.clear();
     resolvedIncludePathCache.clear();
+    cachedWorkspaceFiles = null;
 
     for (const change of params.changes) {
         const changedUri = change.uri;
@@ -567,7 +571,43 @@ connection.onReferences((params: ReferenceParams): Location[] => {
     const data = documentsData.get(document.uri);
     if (!data) return [];
 
-    return Parser.doReferences(document.getText(), params.position, document.uri, data, dependenciesData, readIncludeContent);
+    // Obter arquivos do workspace se disponível
+    const workspacePath = workspaceRoot ? URI.parse(workspaceRoot).fsPath : undefined;
+    if (cachedWorkspaceFiles === null && workspacePath) {
+        cachedWorkspaceFiles = findWorkspaceFiles(workspacePath);
+    }
+
+    const candidateUris: string[] = [];
+    if (cachedWorkspaceFiles) {
+        for (const filePath of cachedWorkspaceFiles) {
+            candidateUris.push(URI.file(filePath).toString());
+        }
+    }
+    // Adiciona outros documentos abertos
+    for (const openDoc of documentsManager.all()) {
+        if (!candidateUris.includes(openDoc.uri)) {
+            candidateUris.push(openDoc.uri);
+        }
+    }
+
+    // Função unificada para ler conteúdo: documento aberto tem prioridade (texto em edição)
+    const getFileContent = (uri: string): string | null => {
+        const openDoc = documentsManager.get(uri);
+        if (openDoc) {
+            return openDoc.getText();
+        }
+        return readIncludeContent(uri);
+    };
+
+    return Parser.doReferences(
+        document.getText(),
+        params.position,
+        document.uri,
+        data,
+        dependenciesData,
+        getFileContent,
+        candidateUris
+    );
 });
 
 // --- Rename Provider ---

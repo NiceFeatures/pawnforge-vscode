@@ -34,6 +34,29 @@ This project revives and modernizes the development experience for **AMX Mod X**
 
 It transforms VS Code into a powerful IDE for Pawn, bringing features that were previously exclusive to newer languages.
 
+## ✨ What's New (v1.5.9)
+> 💡 **Agradecimentos especiais / Special thanks:** [@iXP0Mt](https://github.com/iXP0Mt) pelo reporte detalhado e feedback valioso na [Issue #1](https://github.com/NiceFeatures/pawnforge-vscode/issues/1)!
+
+### Added
+- **Suporte a "Go To References" (`Shift+F12`) entre Arquivos `.inc` sem abrir `.sma` previamente**: O Language Server agora descobre recursivamente todos os arquivos `.inc` e `.sma` do workspace (`findWorkspaceFiles`), permitindo encontrar referências de funções, variáveis e constantes mesmo com apenas um cabeçalho `.inc` aberto isoladamente no editor.
+- * **"Go To References" (`Shift+F12`) across `.inc` files without opening `.sma`**: The Language Server now recursively discovers all `.inc` and `.sma` workspace files (`findWorkspaceFiles`), resolving symbol references across headers even when opening an `.inc` file in isolation.*
+- **Navegação Interativa e Busca de Referências com `Ctrl+Click` na Definição de Símbolos**: `doDefinition` agora retorna a localização válida do símbolo mesmo quando o cursor estiver na própria linha de sua definição. Em conjunto com a configuração `editor.gotoLocation.alternativeDefinitionCommand` definida para `editor.action.goToReferences`, dar `Ctrl+Click` direto na definição de uma função, variável global ou constante abre instantaneamente todas as suas referências no workspace.
+- * **Interactive `Ctrl+Click` Navigation on Symbol Definitions**: `doDefinition` now returns a valid location even when invoked directly on the symbol's declaration line. Coupled with `editor.gotoLocation.alternativeDefinitionCommand` set to `editor.action.goToReferences`, pressing `Ctrl+Click` directly on a definition immediately opens all its workspace references.*
+
+### Fixed
+- **Exclusão da Definição quando Invocado na Própria Linha de Definição**: Ao acionar "Go to References" (ou `Ctrl+Click`) na linha de definição de um símbolo, a definição em si é automaticamente omitida da lista de resultados, exibindo exclusivamente os locais reais de chamada/uso (eliminando redundância). Quando acionado a partir de um ponto de chamada/uso, a definição original continua presente nos resultados juntamente com os demais usos.
+- * **Definition Exclusion when Invoked on Definition Line**: When invoking "Go to References" (or `Ctrl+Click`) from a symbol's definition line, the definition itself is omitted from the reference list, showing only actual call/usage sites. When invoked from a call site, the definition is preserved in the results alongside usages.*
+- **Isolamento Estrito de Escopo para Referências de Variáveis Locais**: A busca de referências para variáveis locais foi restrita estritamente ao escopo da função onde a variável foi declarada (`scopeStartLine`..`scopeEndLine`), eliminando falsos positivos com variáveis de mesmo nome em outras funções ou arquivos. Além disso, se invocado na linha de declaração da variável local, a linha de declaração é omitida dos resultados.
+- * **Strict Scope Isolation for Local Variable References**: References for local variables are now strictly bounded to their enclosing function's body (`scopeStartLine`..`scopeEndLine`), preventing collision with same-named local variables in other functions or files. Additionally, invoking on the declaration line omits the declaration itself.*
+
+### Performance & Reliability
+- **Pré-filtro de String Instantâneo na Busca de Referências no Workspace**: Antes de executar expressões regulares e quebras de linha em arquivos candidatos, o Language Server aplica uma checagem rápida com `targetContent.includes(identifier)`, alcançando latência média de apenas 0.39 ms por consulta em workspaces com centenas de arquivos.
+- * **Instant String Pre-filtering for Workspace References**: Before applying regex and line splitting across candidate workspace files, the Language Server performs a fast `targetContent.includes(identifier)` check, achieving sub-millisecond reference lookup latency (~0.39 ms).*
+- **Cache Reativo de Arquivos do Workspace para Referências**: Os caminhos de arquivos do workspace (`.sma` e `.inc`) são mantidos em memória e invalidados automaticamente com reatividade a mudanças no disco (`onDidChangeWatchedFiles`, `onDidChangeConfiguration` e `reparseAll`).
+- * **Reactive Workspace File Cache for References**: Workspace file paths (`.sma` and `.inc`) are cached in-memory and reactively invalidated upon filesystem events (`onDidChangeWatchedFiles`, `onDidChangeConfiguration`, and `reparseAll`).*
+
+---
+
 ## ✨ What's New (v1.5.8)
 ### Fixed
 - **Detecção e Diagnósticos de Erros Fatais do Compilador (`fatal error`)**: O compilador agora reporta erros fatais (`fatal error 100`) diretamente na aba de Problemas e marcadores inline no editor.

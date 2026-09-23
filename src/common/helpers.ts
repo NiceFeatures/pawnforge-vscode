@@ -205,4 +205,59 @@ export function resolveIncludeDirectories(
     }
 
     return [...new Set(resultDirs)];
-}
+}
+
+const IGNORED_DIRECTORIES = new Set([
+    'node_modules',
+    'build',
+    'dist',
+    'out',
+    'bin',
+    '.git',
+    '.vscode',
+    '.agent',
+    '.agents',
+    '.system_generated'
+]);
+
+export function findWorkspaceFiles(workspacePath: string, maxDepth: number = 10, maxFiles: number = 2000): string[] {
+    const results: string[] = [];
+    if (!workspacePath || !FS.existsSync(workspacePath)) return results;
+
+    function walk(currentDir: string, currentDepth: number) {
+        if (currentDepth > maxDepth || results.length >= maxFiles) return;
+
+        let entries: FS.Dirent[];
+        try {
+            entries = FS.readdirSync(currentDir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+
+        for (const entry of entries) {
+            if (results.length >= maxFiles) break;
+
+            if (entry.isDirectory()) {
+                if (entry.name.startsWith('.') || IGNORED_DIRECTORIES.has(entry.name.toLowerCase())) {
+                    continue;
+                }
+                walk(Path.join(currentDir, entry.name), currentDepth + 1);
+            } else if (entry.isFile()) {
+                const lower = entry.name.toLowerCase();
+                if (lower.endsWith('.sma') || lower.endsWith('.inc')) {
+                    results.push(Path.normalize(Path.join(currentDir, entry.name)));
+                }
+            }
+        }
+    }
+
+    try {
+        const stat = FS.statSync(workspacePath);
+        if (stat.isDirectory()) {
+            walk(workspacePath, 0);
+        }
+    } catch { /* ignore */ }
+
+    return results;
+}
+

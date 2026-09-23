@@ -31,7 +31,7 @@ Enquanto outras extensões de AMXX Pawn para VS Code permanecem abandonadas ou p
 
 ### 🥊 Comparativo Definitivo: PawnForge vs Ferramentas Rivais
 
-| Recurso / Capacidade | AMXX Studio / Extensões Legadas | PawnForge Studio (v1.5.8+) |
+| Recurso / Capacidade | AMXX Studio / Extensões Legadas | PawnForge Studio (v1.5.9+) |
 |---|---|---|
 | **Compiladores Suportados** | Apenas `amxxpc` antigo (exige saída textual `Done.`) | **Suporte Total a Compiladores Modernos:** `amxx-nova-pc` e `amxxpc` clássico com detecção robusta de saída e flags avançadas (`-E`, `-d3`, `-O2`). |
 | **Resolução de Includes** | Apenas pastas planas e diretórios fixos | **Globs Recursivos (`**/*.inc`)**, suporte a subpastas aninhadas e variáveis de sistema/ambiente. |
@@ -42,6 +42,7 @@ Enquanto outras extensões de AMXX Pawn para VS Code permanecem abandonadas ou p
 | **Consumo de Memória (Heap)** | Símbolos duplicados a cada header incluído | **Deduplicação Inteligente de Símbolos:** 26% menor uso de Heap RAM e zero vazamento de cache. |
 | **Segurança e Estabilidade** | Concatenação vulnerável de comandos no shell | **Execução Segura sem Shell (`CP.spawn`), Watchdog de 30s** contra loops infinitos e debounce anti-concorrência. |
 | **Proteção contra ReDoS** | Expressões regulares lentas que travam a IDE | **Sanitização Linear de Regexes:** Proteção absoluta contra travamentos por backtracking catastrófico. |
+| **Navegação & Referências** | Falha sem `.sma` aberto; sem suporte em `.inc` | **Workspace References (`Shift+F12`):** Busca em todos os `.inc` e `.sma`, navegação `Ctrl+Click` direto na definição e omissão inteligente de definições redundantes. |
 | **Navegação em Callbacks** | Não reconhece funções chamadas por string | **Smart Jump em `set_task`:** Pressione `F12` em strings de callback para ir direto à função de destino. |
 | **Folding e Workspace** | Escopos limitados a chaves simples | **Code Folding Nativo** (`#if/#else/#endif`, `enum`, `/* */`) e **Workspace Symbols (`Ctrl+T`)**. |
 | **Status em Tempo Real** | Apenas logs brutos no terminal | **Widget na Barra de Status** com duração em segundos e status visual (`$(check) AMXX: OK (0.04s)`). |

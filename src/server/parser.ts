@@ -765,7 +765,6 @@ export function doDefinition(
     const localVars = data.localVariables;
     const localVar = localVars.find(lv => lv.identifier === result.identifier && position.line >= lv.scopeStartLine && position.line <= lv.scopeEndLine);
     if (localVar) {
-        if (position.line === localVar.range.start.line) return null;
         return VSCLS.Location.create(localVar.file.toString(), localVar.range);
     }
 
@@ -802,7 +801,6 @@ export function doDefinition(
         value = symbols.values.find(val => potentialIdentifiers.some(id => id.toLowerCase() === val.identifier.toLowerCase()));
     }
     if (value) {
-        if (data.uri === value.file.toString() && position.line === value.range.start.line) return null;
         return VSCLS.Location.create(value.file.toString(), value.range);
     }
 
@@ -818,7 +816,6 @@ export function doDefinition(
         callable = symbols.callables.find(clb => potentialIdentifiers.some(id => id.toLowerCase() === clb.identifier.toLowerCase()));
     }
     if (callable) {
-        if (data.uri === callable.file.toString() && position.line === callable.start.line) return null;
         return VSCLS.Location.create(callable.file.toString(), VSCLS.Range.create(callable.start, callable.end));
     }
 
@@ -828,7 +825,6 @@ export function doDefinition(
         constant = symbols.constants.find(c => c.identifier.toLowerCase() === identifierLower);
     }
     if (constant) {
-        if (data.uri === constant.file.toString() && position.line === constant.range.start.line) return null;
         return VSCLS.Location.create(constant.file.toString(), constant.range);
     }
 
@@ -1229,7 +1225,8 @@ export function doReferences(
     content: string, position: VSCLS.Position, documentUri: string,
     data: Types.DocumentData,
     dependenciesData: Map<DM.FileDependency, Types.DocumentData>,
-    getIncludeContent?: (uri: string) => string | null
+    getIncludeContent?: (uri: string) => string | null,
+    candidateUris?: string[]
 ): VSCLS.Location[] {
     const cursorIndex = positionToIndex(content, position);
     const result = findIdentifierAtCursor(content, cursorIndex);
@@ -1238,41 +1235,80 @@ export function doReferences(
     const identifier = result.identifier;
     const locations: VSCLS.Location[] = [];
 
+    // Check if this identifier is a local variable in the current document
+    const localVars = data.localVariables;
+    const localVar = localVars.find(lv => lv.identifier === identifier && position.line >= lv.scopeStartLine && position.line <= lv.scopeEndLine);
+    if (localVar) {
+        // Local variable references are strictly scoped to the enclosing function
+        const lines = content.split(/\r?\n/);
+        const scopedLines = lines.slice(localVar.scopeStartLine, localVar.scopeEndLine + 1);
+        const scopedContent = scopedLines.join('\n');
+        const scopedLocations: VSCLS.Location[] = [];
+        findIdentifierOccurrences(scopedContent, identifier, documentUri, scopedLocations, false);
+        for (const loc of scopedLocations) {
+            loc.range.start.line += localVar.scopeStartLine;
+            loc.range.end.line += localVar.scopeStartLine;
+        }
+        // If invoked at the declaration line of the local variable, exclude the declaration itself
+        if (position.line === localVar.range.start.line) {
+            return scopedLocations.filter(loc => loc.range.start.line !== position.line);
+        }
+        return scopedLocations;
+    }
+
+    const symbols = Helpers.getSymbols(data, dependenciesData);
+
     // Determine if this identifier is a callable (function/stock/public) or variable/constant
     let isCallable = result.isCallable;
-    if (!isCallable) {
-        const symbols = Helpers.getSymbols(data, dependenciesData);
-        if (symbols.callablesMap) {
-            isCallable = symbols.callablesMap.has(identifier.toLowerCase());
-        } else {
-            for (const callable of symbols.callables) {
-                if (callable.identifier === identifier) {
-                    isCallable = true;
-                    break;
-                }
-            }
-        }
+    const idLower = identifier.toLowerCase();
+    const targetCallable = symbols.callablesMap ? symbols.callablesMap.get(idLower) : symbols.callables.find(c => c.identifier.toLowerCase() === idLower);
+    const targetValue = symbols.valuesMap ? symbols.valuesMap.get(idLower) : symbols.values.find(v => v.identifier.toLowerCase() === idLower);
+    const targetConstant = symbols.constantsMap ? symbols.constantsMap.get(idLower) : symbols.constants.find(c => c.identifier.toLowerCase() === idLower);
+
+    if (!isCallable && targetCallable) {
+        isCallable = true;
     }
+
+    // Check if "Go to References" was invoked directly on the symbol's definition
+    const isInvokedAtDefinition = (
+        (targetCallable !== undefined && targetCallable.file.toString() === documentUri && position.line === targetCallable.start.line) ||
+        (targetValue !== undefined && targetValue.file.toString() === documentUri && position.line === targetValue.range.start.line) ||
+        (targetConstant !== undefined && targetConstant.file.toString() === documentUri && position.line === targetConstant.range.start.line)
+    );
 
     // Search all occurrences in the current document
     findIdentifierOccurrences(content, identifier, documentUri, locations, isCallable);
 
-    // Search all occurrences in dependency files (includes)
-    for (const [dep] of dependenciesData.entries()) {
-        const depUri = dep.uri;
-        try {
-            let depContent: string | null = null;
-            if (getIncludeContent) {
-                depContent = getIncludeContent(depUri);
+    // Collect all candidate URIs to search (workspace files + includes)
+    const targetUris = new Set<string>();
+    if (candidateUris) {
+        for (const uri of candidateUris) {
+            if (uri !== documentUri) {
+                targetUris.add(uri);
             }
-            if (depContent === null) {
-                const depFsPath = URI.parse(depUri).fsPath;
+        }
+    }
+    for (const [dep] of dependenciesData.entries()) {
+        if (dep.uri !== documentUri) {
+            targetUris.add(dep.uri);
+        }
+    }
+
+    // Search all occurrences across candidate files
+    for (const targetUri of targetUris) {
+        try {
+            let targetContent: string | null = null;
+            if (getIncludeContent) {
+                targetContent = getIncludeContent(targetUri);
+            }
+            if (targetContent === null) {
+                const depFsPath = URI.parse(targetUri).fsPath;
                 if (FS.existsSync(depFsPath)) {
-                    depContent = FS.readFileSync(depFsPath, 'utf8');
+                    targetContent = FS.readFileSync(depFsPath, 'utf8');
                 }
             }
-            if (depContent) {
-                findIdentifierOccurrences(depContent, identifier, depUri, locations, isCallable);
+            if (targetContent && targetContent.includes(identifier)) {
+                findIdentifierOccurrences(targetContent, identifier, targetUri, locations, isCallable);
             }
         } catch (e) {
             // ignore read errors
@@ -1283,6 +1319,10 @@ export function doReferences(
     const seen = new Set<string>();
     const unique: VSCLS.Location[] = [];
     for (const loc of locations) {
+        // Exclude the definition location itself if references were invoked from the definition
+        if (isInvokedAtDefinition && loc.uri === documentUri && loc.range.start.line === position.line) {
+            continue;
+        }
         const key = `${loc.uri}:${loc.range.start.line}:${loc.range.start.character}`;
         if (!seen.has(key)) {
             seen.add(key);

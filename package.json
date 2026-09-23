@@ -2,7 +2,7 @@
     "name": "pawnforge",
     "displayName": "%extension.displayName%",
     "description": "%extension.description%",
-    "version": "1.5.8",
+    "version": "1.5.9",
     "publisher": "iceeedR",
     "license": "GPL-3.0",
     "icon": "images/extension-logo.png",
@@ -42,7 +42,8 @@
     "contributes": {
         "configurationDefaults": {
             "[amxxpawn]": {
-                "editor.semanticHighlighting.enabled": true
+                "editor.semanticHighlighting.enabled": true,
+                "editor.gotoLocation.alternativeDefinitionCommand": "editor.action.goToReferences"
             }
         },
         "languages": [
@@ -201,8 +202,8 @@
         "compile": "tsc -noEmit -p ./",
         "esbuild": "node esbuild.js --production",
         "watch": "node esbuild.js --watch",
-        "test": "node -e \"require('esbuild').buildSync({ entryPoints: ['tests/test_usage.ts', 'tests/test_parser.ts', 'tests/test_references.ts', 'tests/test_arr.ts', 'tests/test_lsp_features.ts', 'tests/test_include_resolution.ts', 'tests/test_confirmed_bugs.ts', 'tests/test_optimizations.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_arr.js && node build/test/test_references.js && node build/test/test_usage.js && node build/test/test_lsp_features.js && node build/test/test_include_resolution.js && node build/test/test_confirmed_bugs.js && node build/test/test_optimizations.js",
-        "benchmark": "node -e \"require('esbuild').buildSync({ entryPoints: ['tests/test_benchmark.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_benchmark.js"
+        "test": "node -e \"require('esbuild').buildSync({ entryPoints: ['tests/test_usage.ts', 'tests/test_parser.ts', 'tests/test_references.ts', 'tests/test_arr.ts', 'tests/test_lsp_features.ts', 'tests/test_include_resolution.ts', 'tests/test_confirmed_bugs.ts', 'tests/test_optimizations.ts', 'tests/test_issue_1.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_arr.js && node build/test/test_references.js && node build/test/test_usage.js && node build/test/test_lsp_features.js && node build/test/test_include_resolution.js && node build/test/test_confirmed_bugs.js && node build/test/test_optimizations.js && node build/test/test_issue_1.js",
+        "benchmark": "node -e \"require('esbuild').buildSync({ entryPoints: ['tests/test_benchmark.ts', 'tests/test_references_benchmark.ts'], outdir: 'build/test', bundle: true, platform: 'node' })\" && node build/test/test_benchmark.js && node build/test/test_references_benchmark.js"
     },
     "devDependencies": {
         "@types/node": "^18.0.0",
